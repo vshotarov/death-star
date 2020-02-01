@@ -113,11 +113,7 @@ struct Triangle
 
 			float t = f * dot(edge2, q);
 
-			/* NOTE in the original algorithm they use the following if
-			 * statement to differentiate line and ray intersections, which
-			 * I don't need here, but if any errors pop up down the line
-			 * it's worth investigating
-			if (t > EPSILON && t < (1 - EPSILON))
+			if (t > t_min && t < t_max)
 			{
 				rec.t = t;
 				rec.p = r.point_at_parameter(t);
@@ -126,12 +122,6 @@ struct Triangle
 			}
 			else
 				return false;
-			*/
-
-			rec.t = t;
-			rec.p = r.point_at_parameter(t);
-			rec.normal = normal;
-			return true;
 		}
 
 	private:

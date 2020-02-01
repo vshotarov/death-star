@@ -62,7 +62,7 @@ void render(int width, int height, int num_samples, float* pixel_buffer,
 
 			// Get ray through the pixel
 			ray r(origin,
-				  lower_left_corner + u*horizontal + v*vertical);
+				  normalize(lower_left_corner + u*horizontal + v*vertical));
 
 			// Ray trace
 			vec3 out_colour = colour(r, world, num_hittables);
@@ -79,12 +79,15 @@ void render(int width, int height, int num_samples, float* pixel_buffer,
 Hittable* create_world()
 {
 	Hittable* world;
-	world = (Hittable*)malloc(2 * sizeof(Hittable));
+	world = (Hittable*)malloc(3 * sizeof(Hittable));
 
 	world[0] = Hittable::sphere(vec3(.0, .0, -1.0), .5);
 	world[1] = Hittable::triangle(vec3(-1.5f, 0.0f, -1.0f),
 								  vec3(-2.0f, 1.0f, -2.0f),
 								  vec3(-3.0f, 0.0f, -3.0f));
+	world[2] = Hittable::triangle(vec3(.0f, 0.0f, -1.0f),
+								  vec3(-.5f, 0.5f, -1.0f),
+								  vec3(-1.5f, -.2f, -1.0f));
 
 	return world;
 }
@@ -111,7 +114,7 @@ int main(int argc, char** argv)
 	pixel_buffer = (float*)malloc(width * height * 3 * sizeof(float));
 
 	// Render into buffer
-	render(width, height, num_samples, pixel_buffer, world, 2);
+	render(width, height, num_samples, pixel_buffer, world, 3);
 
 	// Write into ppm file
 	std::ofstream out(out_file);
