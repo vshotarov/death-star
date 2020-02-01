@@ -1,20 +1,59 @@
+#include "ray.h"
+
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
 
 #include <glm/glm.hpp>
 
+using namespace glm;
+
+
+vec3 miss_colour(const ray& r)
+{
+	vec3 unit_direction = normalize(r.direction);
+	float t = .5 * (unit_direction.y + 1.0);
+	return (1.0f-t)*vec3(1.0, 1.0, 1.0) + t*vec3(.5, .7, 1.0);
+}
+
+vec3 colour(const ray& r)
+{
+	return miss_colour(r);
+}
 
 void render(int width, int height, int num_samples, float* pixel_buffer)
 {
+	// NOTE temporarily defining camera variables here before actually
+	// implementing camera
+	float aspect_ratio = (float)width / float(height);
+	vec3 lower_left_corner(-2.0, -1.0, -1.0);
+	vec3 horizontal(2.0 * aspect_ratio, .0, .0);
+	vec3 vertical(.0, 2.0, .0);
+	vec3 origin(.0, .0, .0);
+
+	float f_width = (float)width;
+	float f_height = (float)height;
+	
 	for(int y=0; y<height; y++)
 		for(int x=0; x<width; x++)
 		{
+			// U and V are the 2d coordinates of the camera plane
+			float u = float(x) / f_width;
+			float v = float(y) / f_height;
+
+			// Get ray through the pixel
+			ray r(origin,
+				  lower_left_corner + u*horizontal + v*vertical);
+
+			// Ray trace
+			vec3 out_colour = colour(r);
+
+			// Store in pixel buffer
 			int pixel_id = y * width + x;
 
-			pixel_buffer[pixel_id * 3 + 0] = .0f;
-			pixel_buffer[pixel_id * 3 + 1] = y / (float)height;
-			pixel_buffer[pixel_id * 3 + 2] = x / (float)width;
+			pixel_buffer[pixel_id * 3 + 0] = out_colour.x;
+			pixel_buffer[pixel_id * 3 + 1] = out_colour.y;
+			pixel_buffer[pixel_id * 3 + 2] = out_colour.z;
 		}
 }
 
