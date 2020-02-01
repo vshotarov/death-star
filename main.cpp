@@ -34,7 +34,7 @@ vec3 colour(const ray& r, Hittable* world, int num_hittables)
 	}
 
 	if(any_hit)
-		return vec3(.8f, .1f, .2f);
+		return .5f * (rec.normal + 1.0f);
 
 	return miss_colour(r);
 }

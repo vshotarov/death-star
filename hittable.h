@@ -78,7 +78,7 @@ struct Triangle
 		Triangle(vec3 A, vec3 B, vec3 C) :
 			A(A), B(B), C(C)
 		{
-			normal = normalize(cross(A, B));
+			normal = normalize(cross(B-A, C-A));
 		};
 
 		void destroy() {};
