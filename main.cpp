@@ -1,5 +1,7 @@
 #include "ray.h"
+#include "hittable.h"
 
+#include <float.h>
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
@@ -16,12 +18,29 @@ vec3 miss_colour(const ray& r)
 	return (1.0f-t)*vec3(1.0, 1.0, 1.0) + t*vec3(.5, .7, 1.0);
 }
 
-vec3 colour(const ray& r)
+vec3 colour(const ray& r, Hittable* world, int num_hittables)
 {
+	bool any_hit = false;
+	hit_record rec;
+	float max_t = MAXFLOAT;
+
+	for(int i=0; i<num_hittables; i++)
+	{
+		if(world[i].hit(r, .0001, max_t, rec))
+		{
+			max_t = rec.t;
+			any_hit = true;
+		}
+	}
+
+	if(any_hit)
+		return vec3(.8f, .1f, .2f);
+
 	return miss_colour(r);
 }
 
-void render(int width, int height, int num_samples, float* pixel_buffer)
+void render(int width, int height, int num_samples, float* pixel_buffer,
+		Hittable* world, int num_hittables)
 {
 	// NOTE temporarily defining camera variables here before actually
 	// implementing camera
@@ -46,7 +65,7 @@ void render(int width, int height, int num_samples, float* pixel_buffer)
 				  lower_left_corner + u*horizontal + v*vertical);
 
 			// Ray trace
-			vec3 out_colour = colour(r);
+			vec3 out_colour = colour(r, world, num_hittables);
 
 			// Store in pixel buffer
 			int pixel_id = y * width + x;
@@ -55,6 +74,19 @@ void render(int width, int height, int num_samples, float* pixel_buffer)
 			pixel_buffer[pixel_id * 3 + 1] = out_colour.y;
 			pixel_buffer[pixel_id * 3 + 2] = out_colour.z;
 		}
+}
+
+Hittable* create_world()
+{
+	Hittable* world;
+	world = (Hittable*)malloc(2 * sizeof(Hittable));
+
+	world[0] = Hittable::sphere(vec3(.0, .0, -1.0), .5);
+	world[1] = Hittable::triangle(vec3(-1.5f, 0.0f, -1.0f),
+								  vec3(-2.0f, 1.0f, -2.0f),
+								  vec3(-3.0f, 0.0f, -3.0f));
+
+	return world;
 }
 
 int main(int argc, char** argv)
@@ -71,12 +103,15 @@ int main(int argc, char** argv)
 	printf("Initializing death-star for %ix%i pixels and %i samples\n",
 			width, height, num_samples);
 
+	// Create scene
+	Hittable* world = create_world();
+
 	// Allocate memory for pixels
 	float* pixel_buffer;
 	pixel_buffer = (float*)malloc(width * height * 3 * sizeof(float));
 
 	// Render into buffer
-	render(width, height, num_samples, pixel_buffer);
+	render(width, height, num_samples, pixel_buffer, world, 2);
 
 	// Write into ppm file
 	std::ofstream out(out_file);
