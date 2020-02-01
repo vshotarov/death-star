@@ -1,4 +1,5 @@
 run
+*.ppm
 
 # Vim files
 *.swp
