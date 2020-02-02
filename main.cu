@@ -1,7 +1,7 @@
 #include <cuda.h> // Include so GLM picks up the compiler version
 #define GLM_FORCE_CUDA
 
-#include "ray.h"
+#include "camera.h"
 #include "hittable.h"
 #include "scenes.h"
 
@@ -39,7 +39,8 @@ vec3 colour(const ray& r, HittableWorld* world)
 }
 
 __global__
-void initialize_renderer(int width, int height, curandState* rand_state)
+void initialize_renderer(int width, int height, curandState* rand_state,
+		Camera** camera)
 {
 	int x = blockIdx.x * blockDim.x + threadIdx.x;
 	int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -52,11 +53,15 @@ void initialize_renderer(int width, int height, curandState* rand_state)
 	// Initialize random number states for each pixel
 	int seed = 2020;
 	curand_init(seed, pixel_id, 0, &rand_state[pixel_id]);
+
+	// Initialize only one camera
+	if(pixel_id == 0)
+		*camera = new Camera((float)width / (float)height);
 }
 
 __global__
 void render(int width, int height, int num_samples, float* pixel_buffer,
-		HittableWorld** world, curandState* rand_state)
+		HittableWorld** world, curandState* rand_state, Camera** camera)
 {
 	int x = blockIdx.x * blockDim.x + threadIdx.x;
 	int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -65,14 +70,6 @@ void render(int width, int height, int num_samples, float* pixel_buffer,
 		return;
 
 	int pixel_id = y * width + x;
-
-	// NOTE temporarily defining camera variables here before actually
-	// implementing camera
-	float aspect_ratio = (float)width / float(height);
-	vec3 lower_left_corner(-2.0, -1.0, -1.0);
-	vec3 horizontal(2.0 * aspect_ratio, .0, .0);
-	vec3 vertical(.0, 2.0, .0);
-	vec3 origin(.0, .0, .0);
 
 	float f_width = (float)width;
 	float f_height = (float)height;
@@ -89,8 +86,7 @@ void render(int width, int height, int num_samples, float* pixel_buffer,
 		float v = float(y + curand_uniform(&local_rand_state)) / f_height;
 
 		// Get ray through the pixel
-		ray r(origin,
-			  normalize(lower_left_corner + u*horizontal + v*vertical));
+		ray r = (*camera)->get_ray(u, v);
 
 		// Ray trace
 		out_colour += colour(r, *world);
@@ -134,7 +130,12 @@ int main(int argc, char** argv)
 	curandState *rand_state;
 	cudaMalloc((void**)&rand_state, (width * height) * sizeof(curandState));
 
-	initialize_renderer<<<blocks, threads>>>(width, height, rand_state);
+	// Camera
+	Camera** camera;
+	cudaMalloc((void**)&camera, 1 * sizeof(Camera));
+
+	initialize_renderer<<<blocks, threads>>>(width, height, rand_state,
+			camera);
 
 	// Create scene
 	Hittable** hittables;
@@ -152,7 +153,7 @@ int main(int argc, char** argv)
 
 	// Render into buffer
 	render<<<blocks, threads>>>(width, height, num_samples, d_pixel_buffer,
-			world, rand_state);
+			world, rand_state, camera);
 
 	// Copy pixel data from device to cpu
 	cudaMemcpy(pixel_buffer, d_pixel_buffer,
