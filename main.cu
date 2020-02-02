@@ -143,8 +143,8 @@ int main(int argc, char** argv)
 	int max_bounces = strtol(argv[4], &endptr, 10);
 	char* out_file = argv[5];
 
-	printf("Initializing death-star for %ix%i pixels and %i samples\n",
-			width, height, num_samples);
+	printf("Initializing death-star for %ix%i pixels, %i samples and %i max bounces\n",
+			width, height, num_samples, max_bounces);
 
 	// Calculate blocks and threads
 	int tx = 8, ty = 8; // bucket size
