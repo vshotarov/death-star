@@ -26,16 +26,38 @@ vec3 miss_colour(const ray& r)
 }
 
 __device__
-vec3 colour(const ray& r, HittableWorld* world)
+vec3 colour(const ray& r, HittableWorld* world, curandState* rand_state, int max_bounces)
 {
 	hit_record rec;
+	ray this_ray(r.origin, r.direction);
+	vec3 out_colour(0, 0, 0);
+	vec3 attenuation(1,1,1);
 
-	if(world->hit(r, .0001, MAXFLOAT, rec))
+	for(int d=0; d<max_bounces; d++)
 	{
-		return .5f * (rec.normal + 1.0f);
+		if(world->hit(this_ray, .0001, MAXFLOAT, rec))
+		{
+			ray scattered;
+			vec3 this_attenuation;
+
+			if(rec.material->scatter(this_ray, rec, this_attenuation, scattered, rand_state))
+			{
+				this_ray = scattered;
+				attenuation *= this_attenuation;
+			}
+			else
+			{
+				break;
+			}
+		}
+		else
+		{
+			out_colour = miss_colour(r);
+			break;
+		}
 	}
 
-	return miss_colour(r);
+	return attenuation * out_colour;
 }
 
 __global__
@@ -60,7 +82,7 @@ void initialize_renderer(int width, int height, curandState* rand_state,
 }
 
 __global__
-void render(int width, int height, int num_samples, float* pixel_buffer,
+void render(int width, int height, int num_samples, int max_bounces, float* pixel_buffer,
 		HittableWorld** world, curandState* rand_state, Camera** camera)
 {
 	int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -89,10 +111,13 @@ void render(int width, int height, int num_samples, float* pixel_buffer,
 		ray r = (*camera)->get_ray(u, v);
 
 		// Ray trace
-		out_colour += colour(r, *world);
+		out_colour += colour(r, *world, &local_rand_state, max_bounces);
 	}
 
 	out_colour /= float(num_samples);
+
+	// Colour space transformation
+	out_colour = vec3(sqrt(out_colour.x), sqrt(out_colour.y), sqrt(out_colour.z));
 
 	// Store in pixel buffer
 	pixel_buffer[pixel_id * 3 + 0] = out_colour.x;
@@ -115,7 +140,8 @@ int main(int argc, char** argv)
 	int width = strtol(argv[1], &endptr, 10);
 	int height = strtol(argv[2], &endptr, 10);
 	int num_samples = strtol(argv[3], &endptr, 10);
-	char* out_file = argv[4];
+	int max_bounces = strtol(argv[4], &endptr, 10);
+	char* out_file = argv[5];
 
 	printf("Initializing death-star for %ix%i pixels and %i samples\n",
 			width, height, num_samples);
@@ -152,7 +178,7 @@ int main(int argc, char** argv)
 	cudaMalloc(&d_pixel_buffer, width * height * 3 * sizeof(float));
 
 	// Render into buffer
-	render<<<blocks, threads>>>(width, height, num_samples, d_pixel_buffer,
+	render<<<blocks, threads>>>(width, height, num_samples, max_bounces, d_pixel_buffer,
 			world, rand_state, camera);
 
 	// Copy pixel data from device to cpu

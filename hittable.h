@@ -8,18 +8,19 @@
 using namespace glm;
 
 // Hit record used for storing and sharing intersection data
+struct Material;  // Define Material, so it can be stored on Hittables
+
 struct hit_record
 {
 	float t;
 	vec3 p;
 	vec3 normal;
+	Material* material;
 };
 
 // From here on we define all hittable types, and in the end
 // the base Hittable struct, which will be able to represent
 // a hittable of certain type
-struct Hittable;
-
 enum class hittable_type
 {
 	// hittable_type used in union to specify the type of
@@ -136,20 +137,25 @@ struct Hittable
 	// Thanks to the discriminating union pattern we can represent
 	// different hittable types without polymorphism
 	public:
-		__device__ Hittable(hittable_type type) : _type(type) {}
+		__device__ Hittable(hittable_type type, Material* material) :
+			_type(type), material(material) {}
 		__device__ hittable_type type() { return _type; }
 		__device__ ~Hittable() { destroy(); }
 
-		__device__ static Hittable* sphere(vec3 center, float radius)
+		__device__ static Hittable* sphere(vec3 center, float radius,
+				Material* material)
 		{
-			Hittable* hittable = new Hittable(hittable_type::sphere);
+			Hittable* hittable = new Hittable(hittable_type::sphere,
+											  material);
 			hittable->_sphere = Sphere(center, radius);
 			return hittable;
 		}
 
-		__device__ static Hittable* triangle(vec3 a, vec3 b, vec3 c)
+		__device__ static Hittable* triangle(vec3 a, vec3 b, vec3 c,
+				Material* material)
 		{
-			Hittable* hittable = new Hittable(hittable_type::triangle);
+			Hittable* hittable = new Hittable(hittable_type::triangle,
+											  material);
 			hittable->_triangle = Triangle(a, b, c);
 			return hittable;
 		}
@@ -166,11 +172,15 @@ struct Hittable
 					return_val = _triangle.hit(r, t_min, t_max, rec); break;
 			}
 
+			if(return_val)
+				rec.material = material;
+
 			return return_val;
 		}
 
 	private:
 		hittable_type _type;
+		Material* material;
 
 		union {
 			Sphere _sphere;
