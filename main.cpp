@@ -1,5 +1,6 @@
 #include "ray.h"
 #include "hittable.h"
+#include "random.h"
 
 #include <float.h>
 #include <iostream>
@@ -47,16 +48,23 @@ void render(int width, int height, int num_samples, float* pixel_buffer,
 	for(int y=0; y<height; y++)
 		for(int x=0; x<width; x++)
 		{
-			// U and V are the 2d coordinates of the camera plane
-			float u = float(x) / f_width;
-			float v = float(y) / f_height;
+			vec3 out_colour(.0,.0,.0);
 
-			// Get ray through the pixel
-			ray r(origin,
-				  normalize(lower_left_corner + u*horizontal + v*vertical));
+			for(int s=0; s<num_samples; s++)
+			{
+				// U and V are the 2d coordinates of the camera plane
+				float u = float(x + random_double()) / f_width;
+				float v = float(y + random_double()) / f_height;
 
-			// Ray trace
-			vec3 out_colour = colour(r, world);
+				// Get ray through the pixel
+				ray r(origin,
+					  normalize(lower_left_corner + u*horizontal + v*vertical));
+
+				// Ray trace
+				out_colour += colour(r, world);
+			}
+
+			out_colour /= float(num_samples);
 
 			// Store in pixel buffer
 			int pixel_id = y * width + x;
