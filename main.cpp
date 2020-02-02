@@ -67,18 +67,17 @@ void render(int width, int height, int num_samples, float* pixel_buffer,
 		}
 }
 
-HittableWorld* create_world()
+void create_world(Hittable** hittables, HittableWorld** world)
 {
-	HittableWorld* w = new HittableWorld(3);
-	w->add_hittable(Hittable::sphere(vec3(.0, .0, -1.0), .5));
-	w->add_hittable(Hittable::triangle(vec3(-1.5f, 0.0f, -1.0f),
+	hittables[0] = Hittable::sphere(vec3(.0, .0, -1.0), .5);
+	hittables[1] = Hittable::triangle(vec3(-1.5f, 0.0f, -1.0f),
 								  vec3(-2.0f, 1.0f, -2.0f),
-								  vec3(-3.0f, 0.0f, -3.0f)));
-	w->add_hittable(Hittable::triangle(vec3(.0f, 0.0f, -1.0f),
+								  vec3(-3.0f, 0.0f, -3.0f));
+	hittables[2] = Hittable::triangle(vec3(.0f, 0.0f, -1.0f),
 								  vec3(-.5f, 0.5f, -1.0f),
-								  vec3(-1.5f, -.2f, -1.0f)));
+								  vec3(-1.5f, -.2f, -1.0f));
 
-	return w;
+	*world = new HittableWorld(hittables, 3);
 }
 
 int main(int argc, char** argv)
@@ -96,14 +95,19 @@ int main(int argc, char** argv)
 			width, height, num_samples);
 
 	// Create scene
-	HittableWorld* world = create_world();
+	Hittable** hittables;
+	hittables = (Hittable**)malloc(3 * sizeof(Hittable*));
+	HittableWorld** world;
+	world = (HittableWorld**)malloc(1 * sizeof(HittableWorld*));
+
+	create_world(hittables, world);
 
 	// Allocate memory for pixels
 	float* pixel_buffer;
 	pixel_buffer = (float*)malloc(width * height * 3 * sizeof(float));
 
 	// Render into buffer
-	render(width, height, num_samples, pixel_buffer, world);
+	render(width, height, num_samples, pixel_buffer, *world);
 
 	// Write into ppm file
 	std::ofstream out(out_file);

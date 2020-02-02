@@ -140,17 +140,17 @@ struct Hittable
 		hittable_type type() { return _type; }
 		~Hittable() { destroy(); }
 
-		static Hittable sphere(vec3 center, float radius)
+		static Hittable* sphere(vec3 center, float radius)
 		{
-			Hittable hittable(hittable_type::sphere);
-			hittable._sphere = Sphere(center, radius);
+			Hittable* hittable = new Hittable(hittable_type::sphere);
+			hittable->_sphere = Sphere(center, radius);
 			return hittable;
 		}
 
-		static Hittable triangle(vec3 a, vec3 b, vec3 c)
+		static Hittable* triangle(vec3 a, vec3 b, vec3 c)
 		{
-			Hittable hittable(hittable_type::triangle);
-			hittable._triangle = Triangle(a, b, c);
+			Hittable* hittable = new Hittable(hittable_type::triangle);
+			hittable->_triangle = Triangle(a, b, c);
 			return hittable;
 		}
 
@@ -190,31 +190,23 @@ struct Hittable
 struct HittableWorld
 {
 	public:
-		HittableWorld(int num_hittables) : num_hittables(num_hittables)
-		{
-			hittables = (Hittable*)malloc(num_hittables * sizeof(Hittable));
-			counter = 0;
-		};
+		HittableWorld(Hittable** hittables, int num_hittables) :
+			hittables(hittables), num_hittables(num_hittables) {};
 		~HittableWorld() { destroy(); }
+
 		void destroy()
 		{
 			delete [] hittables;
 		};
-
-		void add_hittable(const Hittable& hittable)
-		{
-			assert(counter < num_hittables);
-			hittables[counter++] = hittable;
-		}
 
 		bool hit(const ray& r, float t_min, float t_max, hit_record& rec)
 		{
 			bool any_hit = false;
 			float this_t_max = t_max;
 
-			for(int i=0; i<counter; i++)
+			for(int i=0; i<num_hittables; i++)
 			{
-				if(hittables[i].hit(r, t_min, this_t_max, rec))
+				if(hittables[i]->hit(r, t_min, this_t_max, rec))
 				{
 					this_t_max = rec.t;
 					any_hit = true;
@@ -227,9 +219,8 @@ struct HittableWorld
 		int size() { return num_hittables; }
 
 	private:
-		int counter;
 		int num_hittables;
-		Hittable* hittables;
+		Hittable** hittables;
 };
 
 #endif
