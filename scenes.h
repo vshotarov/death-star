@@ -6,6 +6,22 @@
 #include <curand_kernel.h>
 
 __device__
+void create_RTOW_three_spheres_on_top_of_big_sphere_scene(Hittable** hittables,
+		HittableWorld** world)
+{
+	hittables[0] = Hittable::sphere(vec3(.0, .0, -1.0), .5,
+			Material::lambertian(vec3(.8, .3, .3)));
+	hittables[1] = Hittable::sphere(vec3(.0, -100.5, -1.0), 100,
+			Material::lambertian(vec3(.8, .8, .0)));
+	hittables[2] = Hittable::sphere(vec3(1.0, 0.0, -1.0), .5,
+			Material::metal(vec3(.8, .6, .2), 0.0f));
+	hittables[3] = Hittable::sphere(vec3(-1.0, 0.0, -1.0), .5,
+			Material::metal(vec3(.8, .8, .8), 0.3f));
+
+	*world = new HittableWorld(hittables, 4);
+}
+
+__device__
 void create_sphere_on_top_of_big_sphere_scene(Hittable** hittables,
 		HittableWorld** world)
 {
@@ -44,11 +60,11 @@ void create_random_spheres_and_triangles_scene(Hittable** hittables,
 
 	for(int i=0; i<num_hittables; i++)
 	{
-		Material* material = Material::lambertian(vec3(.5, .5, .5));
-
 		// half spheres and half triangles
 		if(curand_uniform(&rand_state) > .5f)
 		{
+			Material* material = Material::metal(vec3(.5, curand_uniform(&rand_state), .5),
+					curand_uniform(&rand_state) * .2f);
 			hittables[i] = Hittable::sphere(
 					4.0f * (vec3(curand_uniform(&rand_state),
 						         curand_uniform(&rand_state),
@@ -57,6 +73,8 @@ void create_random_spheres_and_triangles_scene(Hittable** hittables,
 		}
 		else
 		{
+			Material* material = Material::lambertian(vec3(
+						curand_uniform(&rand_state), curand_uniform(&rand_state), .5));
 			hittables[i] = Hittable::triangle(
 					4.0f * (vec3(curand_uniform(&rand_state),
 						 	     curand_uniform(&rand_state),

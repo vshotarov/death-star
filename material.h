@@ -4,6 +4,7 @@
 #include "ray.h"
 #include "random.h"
 #include "hittable.h"
+#include "shading_utils.h"
 
 #include <glm/glm.hpp>
 
@@ -13,7 +14,8 @@ using namespace glm;
 // Material types
 enum class material_type
 {
-	lambertian
+	lambertian,
+	metal
 };
 
 struct Lambertian
@@ -38,6 +40,30 @@ struct Lambertian
 		vec3 albedo;
 };
 
+struct Metal
+{
+	public:
+		__device__ Metal(vec3 albedo, float fuzz) :
+			albedo(albedo), fuzz(fuzz) {};
+		__device__ void destroy() {};
+
+		__device__ bool scatter(const ray& r, const hit_record& rec, vec3& attenuation,
+				ray& scattered, curandState* rand_state)
+		{
+			vec3 reflected = reflect(r.direction, rec.normal);
+
+			scattered = ray(rec.p, reflected + fuzz * random_in_unit_sphere(rand_state));
+
+			attenuation = albedo;
+
+			return (dot(scattered.direction, rec.normal) > 0); // Kill ray
+		}
+
+	private:
+		vec3 albedo;
+		float fuzz;
+};
+
 struct Material
 {
 	public:
@@ -52,6 +78,13 @@ struct Material
 			return material;
 		}
 
+		__device__ static Material* metal(vec3 albedo, float fuzz)
+		{
+			Material* material = new Material(material_type::metal);
+			material->_metal = Metal(albedo, fuzz);
+			return material;
+		}
+
 		__device__ bool scatter(const ray& r, const hit_record& rec, vec3& attenuation,
 				ray& scattered, curandState* rand_state)
 		{
@@ -60,6 +93,8 @@ struct Material
 			switch(_type)
 			{
 				case material_type::lambertian: out = _lambertian.scatter(
+					r, rec, attenuation, scattered, rand_state); break;
+				case material_type::metal: out = _metal.scatter(
 					r, rec, attenuation, scattered, rand_state); break;
 			}
 
@@ -70,11 +105,8 @@ struct Material
 		{
 			switch(_type)
 			{
-				case material_type::lambertian:
-				{
-					_lambertian.destroy();
-					break;
-				}
+				case material_type::lambertian: _lambertian.destroy(); break;
+				case material_type::metal: _metal.destroy(); break;
 			}
 		}
 
@@ -84,6 +116,7 @@ struct Material
 		union
 		{
 			Lambertian _lambertian;
+			Metal _metal;
 		};
 };
 
