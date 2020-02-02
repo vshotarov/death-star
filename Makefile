@@ -1,8 +1,8 @@
-CC=g++
-CFLAGS=-I. -I./dep/include -L./dep/lib
+CC=nvcc
+CFLAGS=-I. -I./dep/include -L./dep/lib -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored -lineinfo -g
 
-main: main.cpp
-	$(CC) -o run main.cpp $(CFLAGS)
+main: main.cu
+	$(CC) -o run main.cu $(CFLAGS)
 
 .PHONY: clean
 

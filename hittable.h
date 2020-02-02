@@ -31,12 +31,12 @@ enum class hittable_type
 struct Sphere
 {
 	public:
-		Sphere() {};
-		Sphere(vec3 center, float radius) :
+		__device__ Sphere() {};
+		__device__ Sphere(vec3 center, float radius) :
 			center(center), radius(radius) {}
-		void destroy() {};
+		__device__ void destroy() {};
 
-		bool hit(const ray& r, float t_min, float t_max, hit_record& rec)
+		__device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec)
 		{
 			vec3 oc = r.origin - center;
 			float a = dot(r.direction, r.direction);
@@ -74,16 +74,16 @@ struct Sphere
 struct Triangle
 {
 	public:
-		Triangle() {};
-		Triangle(vec3 A, vec3 B, vec3 C) :
+		__device__ Triangle() {};
+		__device__ Triangle(vec3 A, vec3 B, vec3 C) :
 			A(A), B(B), C(C)
 		{
 			normal = normalize(cross(B-A, C-A));
 		};
 
-		void destroy() {};
+		__device__ void destroy() {};
 
-		bool hit(const ray& r, float t_min, float t_max, hit_record& rec)
+		__device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec)
 		{
 			// https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
 			const float EPSILON = .0000001;
@@ -136,25 +136,25 @@ struct Hittable
 	// Thanks to the discriminating union pattern we can represent
 	// different hittable types without polymorphism
 	public:
-		Hittable(hittable_type type) : _type(type) {}
-		hittable_type type() { return _type; }
-		~Hittable() { destroy(); }
+		__device__ Hittable(hittable_type type) : _type(type) {}
+		__device__ hittable_type type() { return _type; }
+		__device__ ~Hittable() { destroy(); }
 
-		static Hittable* sphere(vec3 center, float radius)
+		__device__ static Hittable* sphere(vec3 center, float radius)
 		{
 			Hittable* hittable = new Hittable(hittable_type::sphere);
 			hittable->_sphere = Sphere(center, radius);
 			return hittable;
 		}
 
-		static Hittable* triangle(vec3 a, vec3 b, vec3 c)
+		__device__ static Hittable* triangle(vec3 a, vec3 b, vec3 c)
 		{
 			Hittable* hittable = new Hittable(hittable_type::triangle);
 			hittable->_triangle = Triangle(a, b, c);
 			return hittable;
 		}
 
-		bool hit(const ray& r, float t_min, float t_max, hit_record& rec)
+		__device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec)
 		{
 			bool return_val;
 
@@ -177,7 +177,7 @@ struct Hittable
 			Triangle _triangle;
 		};
 
-		void destroy()
+		__device__ void destroy()
 		{
 			switch(_type)
 			{
@@ -190,16 +190,16 @@ struct Hittable
 struct HittableWorld
 {
 	public:
-		HittableWorld(Hittable** hittables, int num_hittables) :
+		__device__ HittableWorld(Hittable** hittables, int num_hittables) :
 			hittables(hittables), num_hittables(num_hittables) {};
-		~HittableWorld() { destroy(); }
+		__device__ ~HittableWorld() { destroy(); }
 
-		void destroy()
+		__device__ void destroy()
 		{
 			delete [] hittables;
 		};
 
-		bool hit(const ray& r, float t_min, float t_max, hit_record& rec)
+		__device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec)
 		{
 			bool any_hit = false;
 			float this_t_max = t_max;
@@ -216,7 +216,7 @@ struct HittableWorld
 			return any_hit;
 		}
 
-		int size() { return num_hittables; }
+		__device__ int size() { return num_hittables; }
 
 	private:
 		int num_hittables;

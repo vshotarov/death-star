@@ -1,3 +1,6 @@
+#include <cuda.h> // Include so GLM picks up the compiler version
+#define GLM_FORCE_CUDA
+
 #include "ray.h"
 #include "hittable.h"
 
@@ -11,6 +14,7 @@
 using namespace glm;
 
 
+__device__
 vec3 miss_colour(const ray& r)
 {
 	vec3 unit_direction = normalize(r.direction);
@@ -18,6 +22,7 @@ vec3 miss_colour(const ray& r)
 	return (1.0f-t)*vec3(1.0, 1.0, 1.0) + t*vec3(.5, .7, 1.0);
 }
 
+__device__
 vec3 colour(const ray& r, HittableWorld* world)
 {
 	hit_record rec;
@@ -30,9 +35,18 @@ vec3 colour(const ray& r, HittableWorld* world)
 	return miss_colour(r);
 }
 
+__global__
 void render(int width, int height, int num_samples, float* pixel_buffer,
-		HittableWorld* world)
+		HittableWorld** world)
 {
+	int x = blockIdx.x * blockDim.x + threadIdx.x;
+	int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+	if((x >= width) || (y >= height))
+		return;
+
+	int pixel_id = y * width + x;
+
 	// NOTE temporarily defining camera variables here before actually
 	// implementing camera
 	float aspect_ratio = (float)width / float(height);
@@ -44,29 +58,24 @@ void render(int width, int height, int num_samples, float* pixel_buffer,
 	float f_width = (float)width;
 	float f_height = (float)height;
 	
-	for(int y=0; y<height; y++)
-		for(int x=0; x<width; x++)
-		{
-			// U and V are the 2d coordinates of the camera plane
-			float u = float(x) / f_width;
-			float v = float(y) / f_height;
+	// U and V are the 2d coordinates of the camera plane
+	float u = float(x) / f_width;
+	float v = float(y) / f_height;
 
-			// Get ray through the pixel
-			ray r(origin,
-				  normalize(lower_left_corner + u*horizontal + v*vertical));
+	// Get ray through the pixel
+	ray r(origin,
+		  normalize(lower_left_corner + u*horizontal + v*vertical));
 
-			// Ray trace
-			vec3 out_colour = colour(r, world);
+	// Ray trace
+	vec3 out_colour = colour(r, *world);
 
-			// Store in pixel buffer
-			int pixel_id = y * width + x;
-
-			pixel_buffer[pixel_id * 3 + 0] = out_colour.x;
-			pixel_buffer[pixel_id * 3 + 1] = out_colour.y;
-			pixel_buffer[pixel_id * 3 + 2] = out_colour.z;
-		}
+	// Store in pixel buffer
+	pixel_buffer[pixel_id * 3 + 0] = out_colour.x;
+	pixel_buffer[pixel_id * 3 + 1] = out_colour.y;
+	pixel_buffer[pixel_id * 3 + 2] = out_colour.z;
 }
 
+__global__
 void create_world(Hittable** hittables, HittableWorld** world)
 {
 	hittables[0] = Hittable::sphere(vec3(.0, .0, -1.0), .5);
@@ -94,20 +103,32 @@ int main(int argc, char** argv)
 	printf("Initializing death-star for %ix%i pixels and %i samples\n",
 			width, height, num_samples);
 
+	// Calculate blocks and threads
+	int tx = 8, ty = 8; // bucket size
+	
+	dim3 blocks(width/tx + 1, height/ty + 1);
+	dim3 threads(tx, ty);
+
 	// Create scene
 	Hittable** hittables;
-	hittables = (Hittable**)malloc(3 * sizeof(Hittable*));
 	HittableWorld** world;
-	world = (HittableWorld**)malloc(1 * sizeof(HittableWorld*));
 
-	create_world(hittables, world);
+	cudaMalloc((void**)&hittables, 3 * sizeof(Hittable*));
+	cudaMalloc((void**)&world, 1 * sizeof(HittableWorld*));
+
+	create_world<<<1, 1>>>(hittables, world);
 
 	// Allocate memory for pixels
-	float* pixel_buffer;
+	float *pixel_buffer, *d_pixel_buffer;
 	pixel_buffer = (float*)malloc(width * height * 3 * sizeof(float));
+	cudaMalloc(&d_pixel_buffer, width * height * 3 * sizeof(float));
 
 	// Render into buffer
-	render(width, height, num_samples, pixel_buffer, *world);
+	render<<<blocks, threads>>>(width, height, num_samples, d_pixel_buffer, world);
+
+	// Copy pixel data from device to cpu
+	cudaMemcpy(pixel_buffer, d_pixel_buffer,
+			width * height * 3 * sizeof(float), cudaMemcpyDeviceToHost);
 
 	// Write into ppm file
 	std::ofstream out(out_file);
