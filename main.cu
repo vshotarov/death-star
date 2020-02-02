@@ -3,6 +3,7 @@
 
 #include "ray.h"
 #include "hittable.h"
+#include "scenes.h"
 
 #include <float.h>
 #include <iostream>
@@ -106,15 +107,7 @@ void render(int width, int height, int num_samples, float* pixel_buffer,
 __global__
 void create_world(Hittable** hittables, HittableWorld** world)
 {
-	hittables[0] = Hittable::sphere(vec3(.0, .0, -1.0), .5);
-	hittables[1] = Hittable::triangle(vec3(-1.5f, 0.0f, -1.0f),
-								  vec3(-2.0f, 1.0f, -2.0f),
-								  vec3(-3.0f, 0.0f, -3.0f));
-	hittables[2] = Hittable::triangle(vec3(.0f, 0.0f, -1.0f),
-								  vec3(-.5f, 0.5f, -1.0f),
-								  vec3(-1.5f, -.2f, -1.0f));
-
-	*world = new HittableWorld(hittables, 3);
+	create_random_spheres_and_triangles_scene(hittables, world);
 }
 
 int main(int argc, char** argv)
@@ -147,7 +140,7 @@ int main(int argc, char** argv)
 	Hittable** hittables;
 	HittableWorld** world;
 
-	cudaMalloc((void**)&hittables, 3 * sizeof(Hittable*));
+	cudaMalloc((void**)&hittables, 50 * sizeof(Hittable*));
 	cudaMalloc((void**)&world, 1 * sizeof(HittableWorld*));
 
 	create_world<<<1, 1>>>(hittables, world);
