@@ -9,6 +9,8 @@
 #include <fstream>
 #include <cstdlib>
 
+#include <curand_kernel.h>
+
 #include <glm/glm.hpp>
 
 using namespace glm;
@@ -36,8 +38,24 @@ vec3 colour(const ray& r, HittableWorld* world)
 }
 
 __global__
+void initialize_renderer(int width, int height, curandState* rand_state)
+{
+	int x = blockIdx.x * blockDim.x + threadIdx.x;
+	int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+	if((x >= width) || (y >= height))
+		return;
+
+	int pixel_id = y * width + x;
+
+	// Initialize random number states for each pixel
+	int seed = 2020;
+	curand_init(seed, pixel_id, 0, &rand_state[pixel_id]);
+}
+
+__global__
 void render(int width, int height, int num_samples, float* pixel_buffer,
-		HittableWorld** world)
+		HittableWorld** world, curandState* rand_state)
 {
 	int x = blockIdx.x * blockDim.x + threadIdx.x;
 	int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -57,17 +75,27 @@ void render(int width, int height, int num_samples, float* pixel_buffer,
 
 	float f_width = (float)width;
 	float f_height = (float)height;
-	
-	// U and V are the 2d coordinates of the camera plane
-	float u = float(x) / f_width;
-	float v = float(y) / f_height;
 
-	// Get ray through the pixel
-	ray r(origin,
-		  normalize(lower_left_corner + u*horizontal + v*vertical));
+	// Grab the rand_state for this pixel
+	curandState local_rand_state = rand_state[pixel_id];
 
-	// Ray trace
-	vec3 out_colour = colour(r, *world);
+	vec3 out_colour(.0, .0, .0);
+
+	for(int s=0; s<num_samples; s++)
+	{
+		// U and V are the 2d coordinates of the camera plane
+		float u = float(x + curand_uniform(&local_rand_state)) / f_width;
+		float v = float(y + curand_uniform(&local_rand_state)) / f_height;
+
+		// Get ray through the pixel
+		ray r(origin,
+			  normalize(lower_left_corner + u*horizontal + v*vertical));
+
+		// Ray trace
+		out_colour += colour(r, *world);
+	}
+
+	out_colour /= float(num_samples);
 
 	// Store in pixel buffer
 	pixel_buffer[pixel_id * 3 + 0] = out_colour.x;
@@ -109,6 +137,12 @@ int main(int argc, char** argv)
 	dim3 blocks(width/tx + 1, height/ty + 1);
 	dim3 threads(tx, ty);
 
+	// CUDA random number generator
+	curandState *rand_state;
+	cudaMalloc((void**)&rand_state, (width * height) * sizeof(curandState));
+
+	initialize_renderer<<<blocks, threads>>>(width, height, rand_state);
+
 	// Create scene
 	Hittable** hittables;
 	HittableWorld** world;
@@ -124,7 +158,8 @@ int main(int argc, char** argv)
 	cudaMalloc(&d_pixel_buffer, width * height * 3 * sizeof(float));
 
 	// Render into buffer
-	render<<<blocks, threads>>>(width, height, num_samples, d_pixel_buffer, world);
+	render<<<blocks, threads>>>(width, height, num_samples, d_pixel_buffer,
+			world, rand_state);
 
 	// Copy pixel data from device to cpu
 	cudaMemcpy(pixel_buffer, d_pixel_buffer,
