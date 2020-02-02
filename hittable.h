@@ -187,4 +187,49 @@ struct Hittable
 		}
 };
 
+struct HittableWorld
+{
+	public:
+		HittableWorld(int num_hittables) : num_hittables(num_hittables)
+		{
+			hittables = (Hittable*)malloc(num_hittables * sizeof(Hittable));
+			counter = 0;
+		};
+		~HittableWorld() { destroy(); }
+		void destroy()
+		{
+			delete [] hittables;
+		};
+
+		void add_hittable(const Hittable& hittable)
+		{
+			assert(counter < num_hittables);
+			hittables[counter++] = hittable;
+		}
+
+		bool hit(const ray& r, float t_min, float t_max, hit_record& rec)
+		{
+			bool any_hit = false;
+			float this_t_max = t_max;
+
+			for(int i=0; i<counter; i++)
+			{
+				if(hittables[i].hit(r, t_min, this_t_max, rec))
+				{
+					this_t_max = rec.t;
+					any_hit = true;
+				}
+			}
+
+			return any_hit;
+		}
+
+		int size() { return num_hittables; }
+
+	private:
+		int counter;
+		int num_hittables;
+		Hittable* hittables;
+};
+
 #endif

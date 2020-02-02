@@ -18,29 +18,20 @@ vec3 miss_colour(const ray& r)
 	return (1.0f-t)*vec3(1.0, 1.0, 1.0) + t*vec3(.5, .7, 1.0);
 }
 
-vec3 colour(const ray& r, Hittable* world, int num_hittables)
+vec3 colour(const ray& r, HittableWorld* world)
 {
-	bool any_hit = false;
 	hit_record rec;
-	float max_t = MAXFLOAT;
 
-	for(int i=0; i<num_hittables; i++)
+	if(world->hit(r, .0001, MAXFLOAT, rec))
 	{
-		if(world[i].hit(r, .0001, max_t, rec))
-		{
-			max_t = rec.t;
-			any_hit = true;
-		}
-	}
-
-	if(any_hit)
 		return .5f * (rec.normal + 1.0f);
+	}
 
 	return miss_colour(r);
 }
 
 void render(int width, int height, int num_samples, float* pixel_buffer,
-		Hittable* world, int num_hittables)
+		HittableWorld* world)
 {
 	// NOTE temporarily defining camera variables here before actually
 	// implementing camera
@@ -65,7 +56,7 @@ void render(int width, int height, int num_samples, float* pixel_buffer,
 				  normalize(lower_left_corner + u*horizontal + v*vertical));
 
 			// Ray trace
-			vec3 out_colour = colour(r, world, num_hittables);
+			vec3 out_colour = colour(r, world);
 
 			// Store in pixel buffer
 			int pixel_id = y * width + x;
@@ -76,20 +67,18 @@ void render(int width, int height, int num_samples, float* pixel_buffer,
 		}
 }
 
-Hittable* create_world()
+HittableWorld* create_world()
 {
-	Hittable* world;
-	world = (Hittable*)malloc(3 * sizeof(Hittable));
-
-	world[0] = Hittable::sphere(vec3(.0, .0, -1.0), .5);
-	world[1] = Hittable::triangle(vec3(-1.5f, 0.0f, -1.0f),
+	HittableWorld* w = new HittableWorld(3);
+	w->add_hittable(Hittable::sphere(vec3(.0, .0, -1.0), .5));
+	w->add_hittable(Hittable::triangle(vec3(-1.5f, 0.0f, -1.0f),
 								  vec3(-2.0f, 1.0f, -2.0f),
-								  vec3(-3.0f, 0.0f, -3.0f));
-	world[2] = Hittable::triangle(vec3(.0f, 0.0f, -1.0f),
+								  vec3(-3.0f, 0.0f, -3.0f)));
+	w->add_hittable(Hittable::triangle(vec3(.0f, 0.0f, -1.0f),
 								  vec3(-.5f, 0.5f, -1.0f),
-								  vec3(-1.5f, -.2f, -1.0f));
+								  vec3(-1.5f, -.2f, -1.0f)));
 
-	return world;
+	return w;
 }
 
 int main(int argc, char** argv)
@@ -107,14 +96,14 @@ int main(int argc, char** argv)
 			width, height, num_samples);
 
 	// Create scene
-	Hittable* world = create_world();
+	HittableWorld* world = create_world();
 
 	// Allocate memory for pixels
 	float* pixel_buffer;
 	pixel_buffer = (float*)malloc(width * height * 3 * sizeof(float));
 
 	// Render into buffer
-	render(width, height, num_samples, pixel_buffer, world, 3);
+	render(width, height, num_samples, pixel_buffer, world);
 
 	// Write into ppm file
 	std::ofstream out(out_file);
