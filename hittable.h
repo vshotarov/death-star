@@ -2,6 +2,7 @@
 #define HITTABLE_H
 
 #include "ray.h"
+#include "AABB.h"
 
 #include <glm/glm.hpp>
 
@@ -34,7 +35,11 @@ struct Sphere
 	public:
 		__device__ Sphere() {};
 		__device__ Sphere(vec3 center, float radius) :
-			center(center), radius(radius) {}
+			center(center), radius(radius)
+		{
+			bounding_box = AABB(vec3(center.x-radius, center.y-radius, center.z-radius),
+							    vec3(center.x+radius, center.y+radius, center.z+radius));
+		}
 		__device__ void destroy() {};
 
 		__device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec)
@@ -67,6 +72,8 @@ struct Sphere
 			return false;
 		}
 
+		AABB bounding_box;
+
 	private:
 		vec3 center;
 		float radius;
@@ -80,7 +87,23 @@ struct Triangle
 			A(A), B(B), C(C)
 		{
 			normal = normalize(cross(B-A, C-A));
-		};
+
+			float sx = A.x < B.x ? A.x : B.x;
+			sx = C.x < sx ? C.x : sx;
+			float sy = A.y < B.y ? A.y : B.y;
+			sy = C.y < sy ? C.y : sy;
+			float sz = A.z < B.z ? A.z : B.z;
+			sz = C.z < sz ? C.z : sz;
+
+			float lx = A.x > B.x ? A.x : B.x;
+			lx = C.x > lx ? C.x : lx;
+			float ly = A.y > B.y ? A.y : B.y;
+			ly = C.y > ly ? C.y : ly;
+			float lz = A.z > B.z ? A.z : B.z;
+			lz = C.z > lz ? C.z : lz;
+
+			bounding_box = AABB(vec3(sx,sy,sz), vec3(lx,ly,lz));
+		}
 
 		__device__ void destroy() {};
 
@@ -125,6 +148,8 @@ struct Triangle
 				return false;
 		}
 
+		AABB bounding_box;
+
 	private:
 		vec3 A;
 		vec3 B;
@@ -148,6 +173,7 @@ struct Hittable
 			Hittable* hittable = new Hittable(hittable_type::sphere,
 											  material);
 			hittable->_sphere = Sphere(center, radius);
+			hittable->bounding_box = &(hittable->_sphere.bounding_box);
 			return hittable;
 		}
 
@@ -157,6 +183,7 @@ struct Hittable
 			Hittable* hittable = new Hittable(hittable_type::triangle,
 											  material);
 			hittable->_triangle = Triangle(a, b, c);
+			hittable->bounding_box = &(hittable->_triangle.bounding_box);
 			return hittable;
 		}
 
@@ -177,6 +204,8 @@ struct Hittable
 
 			return return_val;
 		}
+
+		AABB* bounding_box;
 
 	private:
 		hittable_type _type;
