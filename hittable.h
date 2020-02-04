@@ -230,7 +230,16 @@ struct HittableWorld
 {
 	public:
 		__device__ HittableWorld(Hittable** hittables, int num_hittables) :
-			hittables(hittables), num_hittables(num_hittables) {};
+			hittables(hittables), num_hittables(num_hittables)
+		{
+			bounding_box = AABB(hittables[0]->bounding_box->min,
+								hittables[0]->bounding_box->max);
+			if(num_hittables > 1)
+				for(int i=1; i<num_hittables; i++)
+					bounding_box = surrounding_box(bounding_box,
+							                       *hittables[i]->bounding_box);
+		};
+
 		__device__ ~HittableWorld() { destroy(); }
 
 		__device__ void destroy()
@@ -256,6 +265,8 @@ struct HittableWorld
 		}
 
 		__device__ int size() { return num_hittables; }
+
+		AABB bounding_box;
 
 	private:
 		int num_hittables;

@@ -16,7 +16,10 @@ struct AABB
 	public:
 		__device__ AABB() {}
 		__device__ AABB(vec3 min, vec3 max) :
-			min(min), max(max) {}
+			min(min), max(max)
+		{
+			centroid = (min + max) * .5f;
+		}
 
 		__device__ bool hit(const ray& r, float t_min, float t_max)
 		{
@@ -45,6 +48,7 @@ struct AABB
 
 		vec3 min;
 		vec3 max;
+		vec3 centroid;
 };
 
 __device__ AABB surrounding_box(AABB box0, AABB box1)
