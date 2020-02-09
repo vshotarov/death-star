@@ -4,6 +4,7 @@
 #include "camera.h"
 #include "hittable.h"
 #include "scenes.h"
+#include "bvh.h"
 
 #include <float.h>
 #include <iostream>
@@ -11,6 +12,7 @@
 #include <cstdlib>
 
 #include <curand_kernel.h>
+#include <thrust/sort.h>
 
 #include <glm/glm.hpp>
 
@@ -128,7 +130,67 @@ void render(int width, int height, int num_samples, int max_bounces, float* pixe
 __global__
 void create_world(Hittable** hittables, HittableWorld** world)
 {
-	create_random_spheres_and_triangles_scene(hittables, world);
+	create_BVH_test_scene(hittables, world);
+}
+
+__global__
+void create_BVH(Hittable** hittables, HittableWorld** world)
+	// NOTE: I should probably get rid of the hittable world object
+	//	as really, the BVH will take over it's functionality
+	// NOTE: This is currently a kernel, so I am not going to be launching
+	//	kernels for the subtasks that can be parallelized, in order to simplify.
+	// 	Once I am convinced this algorithm works, then I can proceed and change this
+	// 	function to a host function that exceutes every parallel task in a separate kernel.
+{
+	int num_hittables = (*world)->size();
+
+	// Create morton codes for each centroid  NOTE: Do this in parallel
+	unsigned int *morton_codes, *sorted_IDs;
+	morton_codes = (unsigned int*)malloc(num_hittables * sizeof(unsigned int));
+	sorted_IDs = (unsigned int*)malloc(num_hittables * sizeof(unsigned int));
+
+	// We will need to normalize centroids to unit cube [0, 1]
+	vec3 scene_size = (*world)->bounding_box.max
+					- (*world)->bounding_box.min;
+
+	for(int i=0; i<num_hittables; i++)
+	{
+		morton_codes[i] = morton3D((hittables[i]->bounding_box->centroid
+								 - (*world)->bounding_box.min) / scene_size);
+		sorted_IDs[i] = (unsigned int)i;
+	}
+
+	// Sort
+	// NOTE: This is currently sorting sequentially, but once create_BVH
+	// is no longer a kernel, we'll use thrust::device to parallelize it
+	thrust::sort_by_key(thrust::seq,
+			morton_codes, morton_codes + num_hittables, sorted_IDs);
+
+	// Build tree  NOTE: Do this in parallel
+	for(int i=0; i<num_hittables-1; i++)
+	{
+		// Determine direction of the range
+		uint2 range = determine_range(morton_codes, i, num_hittables);
+		printf("%i: (%i -> %i)\n", i, range.x, range.y);
+
+		// Find the split position using binary search
+		int split_position = find_split(morton_codes, range, i, num_hittables);
+		printf("	split %i\n", split_position);
+
+		if(split_position == range.x)
+			printf("	left = leaf_nodes[%i]\n", split_position);
+		else
+			printf("	left = internal_nodes[%i]\n", split_position);
+
+		if(split_position + 1 == range.y)
+			printf("	right = leaf_nodes[%i]\n", split_position + 1);
+		else
+			printf("	right = internal_nodes[%i]\n", split_position + 1);
+	}
+
+	// Free memory
+	free(morton_codes);
+	free(sorted_IDs);
 }
 
 int main(int argc, char** argv)
@@ -171,6 +233,9 @@ int main(int argc, char** argv)
 	cudaMalloc((void**)&world, 1 * sizeof(HittableWorld*));
 
 	create_world<<<1, 1>>>(hittables, world);
+
+	// Create BVH
+	create_BVH<<<1, 1>>>(hittables, world);
 
 	// Allocate memory for pixels
 	float *pixel_buffer, *d_pixel_buffer;

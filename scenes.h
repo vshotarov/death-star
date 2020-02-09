@@ -92,4 +92,18 @@ void create_random_spheres_and_triangles_scene(Hittable** hittables,
 	*world = new HittableWorld(hittables, num_hittables);
 }
 
+__device__
+void create_BVH_test_scene(Hittable** hittables, HittableWorld** world)
+{
+	Material* material = Material::lambertian(vec3(.5, .5, .5));
+	for(int i=0; i<3; i++)
+	{
+		for(int j=0; j<3; j++)
+		{
+			hittables[i*3+j] = Hittable::sphere(vec3((i-1)*2,(j-1)*2,-1.0), .5, material);
+		}
+	}
+	*world = new HittableWorld(hittables, 9);
+}
+
 #endif
