@@ -134,7 +134,7 @@ void create_world(Hittable** hittables, HittableWorld** world)
 }
 
 __global__
-void create_BVH(Hittable** hittables, HittableWorld** world)
+void create_BVH_old(Hittable** hittables, HittableWorld** world)
 	// NOTE: I should probably get rid of the hittable world object
 	//	as really, the BVH will take over it's functionality
 	// NOTE: This is currently a kernel, so I am not going to be launching
@@ -235,7 +235,8 @@ int main(int argc, char** argv)
 	create_world<<<1, 1>>>(hittables, world);
 
 	// Create BVH
-	create_BVH<<<1, 1>>>(hittables, world);
+	//create_BVH<<<1, 1>>>(hittables, world, 9);
+	create_BVH(hittables, world, 9);
 
 	// Allocate memory for pixels
 	float *pixel_buffer, *d_pixel_buffer;

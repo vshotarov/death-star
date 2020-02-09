@@ -12,6 +12,8 @@
 
 #include <cstdio>
 
+#include <thrust/sort.h>
+
 #include <glm/glm.hpp>
 
 using namespace glm;
@@ -140,6 +142,55 @@ __device__ unsigned int find_split(unsigned int *morton_codes, const uint2& rang
 	} while(step > 1);
 
 	return split_position;
+}
+
+__global__
+void create_morton_codes(Hittable** hittables, HittableWorld** world, int num_hittables,
+		unsigned int *morton_codes, unsigned int *sorted_IDs)
+	// We pass sorted_IDs, as well, as it's a convinient way of constructing it
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if(idx >= num_hittables)
+		return;
+
+	vec3 scene_size = (*world)->bounding_box.max
+					- (*world)->bounding_box.min;
+
+	morton_codes[idx] = morton3D((hittables[idx]->bounding_box->centroid
+								- (*world)->bounding_box.min) / scene_size);
+	sorted_IDs[idx] = idx;
+}
+
+__global__
+void build_BVH_tree(Hittable** hittables, int num_hittables,
+		unsigned int *morton_codes, unsigned int *sorted_IDs)
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if(idx >= num_hittables - 1)
+		return;
+
+	uint2 range = determine_range(morton_codes, idx, num_hittables);
+	int split_position = find_split(morton_codes, range, idx, num_hittables);
+}
+
+void create_BVH(Hittable** hittables, HittableWorld** world, int num_hittables)
+{
+	// Create morton codes for each centroid
+	unsigned int *morton_codes, *sorted_IDs;
+	cudaMalloc(&morton_codes, num_hittables * sizeof(unsigned int));
+	cudaMalloc(&sorted_IDs, num_hittables * sizeof(unsigned int));
+
+	create_morton_codes<<<3, 3>>>(hittables, world, num_hittables, morton_codes, sorted_IDs);
+	cudaDeviceSynchronize();
+
+	// Sort morton codes
+	thrust::sort_by_key(thrust::device,
+			morton_codes, morton_codes + num_hittables, sorted_IDs);
+
+	// Build the tree hierarchy
+	build_BVH_tree<<<3, 3>>>(hittables, num_hittables, morton_codes, sorted_IDs);
 }
 
 #endif
