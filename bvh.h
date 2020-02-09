@@ -44,6 +44,35 @@ __device__ unsigned int morton3D(vec3 point)
     return xx * 4 + yy * 2 + zz;
 }
 
+enum class bvh_node_type
+{
+	internal,
+	leaf
+};
+
+struct BVHNode
+{
+	__device__ static BVHNode internal()
+	{
+		BVHNode node;
+		node.type = bvh_node_type::internal;
+		return node;
+	}
+
+	__device__ static BVHNode leaf()
+	{
+		BVHNode node;
+		node.type = bvh_node_type::leaf;
+		return node;
+	}
+
+	bvh_node_type type;
+	BVHNode *parent;
+	BVHNode* left;
+	BVHNode* right;
+	unsigned int object_id;
+};
+
 __device__ uint2 determine_range(unsigned int *morton_codes, int i, int num_leaf_nodes)
 {
 	if(i == 0)
@@ -145,8 +174,9 @@ __device__ unsigned int find_split(unsigned int *morton_codes, const uint2& rang
 }
 
 __global__
-void create_morton_codes(Hittable** hittables, HittableWorld** world, int num_hittables,
-		unsigned int *morton_codes, unsigned int *sorted_IDs)
+void initialize_bvh_construction(Hittable** hittables, HittableWorld** world, int num_hittables,
+		unsigned int *morton_codes, unsigned int *sorted_IDs, BVHNode *internal_nodes,
+		BVHNode *leaf_nodes)
 	// We pass sorted_IDs, as well, as it's a convinient way of constructing it
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -160,29 +190,84 @@ void create_morton_codes(Hittable** hittables, HittableWorld** world, int num_hi
 	morton_codes[idx] = morton3D((hittables[idx]->bounding_box->centroid
 								- (*world)->bounding_box.min) / scene_size);
 	sorted_IDs[idx] = idx;
+
+	leaf_nodes[idx] = BVHNode::leaf();
+	if(idx < (num_hittables - 1))
+		internal_nodes[idx] = BVHNode::internal();
 }
 
 __global__
 void build_BVH_tree(Hittable** hittables, int num_hittables,
-		unsigned int *morton_codes, unsigned int *sorted_IDs)
+		unsigned int *morton_codes, unsigned int *sorted_IDs,
+		BVHNode* internal_nodes, BVHNode* leaf_nodes)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if(idx < num_hittables)
+		leaf_nodes[idx].object_id = sorted_IDs[idx];
 
 	if(idx >= num_hittables - 1)
 		return;
 
 	uint2 range = determine_range(morton_codes, idx, num_hittables);
 	int split_position = find_split(morton_codes, range, idx, num_hittables);
+
+	if(split_position == range.x)
+		internal_nodes[idx].left = &leaf_nodes[split_position];
+	else
+		internal_nodes[idx].left = &internal_nodes[split_position];
+	if(split_position + 1 == range.y)
+		internal_nodes[idx].right = &leaf_nodes[split_position + 1];
+	else
+		internal_nodes[idx].right = &internal_nodes[split_position + 1];
+
+	internal_nodes[idx].left->parent = &internal_nodes[idx];
+	internal_nodes[idx].right->parent = &internal_nodes[idx];
+}
+
+__global__
+void print_bvh(BVHNode *internal_nodes, BVHNode *leaf_nodes, Hittable** hittables)
+{
+	for(int i=0; i<8; i++)
+	{
+		printf("Internal %i\n", i);
+		if(internal_nodes[i].left->type == bvh_node_type::leaf)
+		{
+			printf("	left leaf\n");
+			printf("		Sphere bbox->centroid (%.2f, %.2f, %.2f)\n",
+					hittables[internal_nodes[i].left->object_id]->bounding_box->centroid.x,
+					hittables[internal_nodes[i].left->object_id]->bounding_box->centroid.y,
+					hittables[internal_nodes[i].left->object_id]->bounding_box->centroid.z);
+		}
+		else
+			printf("	left internal\n");
+		if(internal_nodes[i].right->type == bvh_node_type::leaf)
+		{
+			printf("	right leaf\n");
+			printf("		Sphere bbox->centroid (%.2f, %.2f, %.2f)\n",
+					hittables[internal_nodes[i].right->object_id]->bounding_box->centroid.x,
+					hittables[internal_nodes[i].right->object_id]->bounding_box->centroid.y,
+					hittables[internal_nodes[i].right->object_id]->bounding_box->centroid.z);
+		}
+		else
+			printf("	right internal\n");
+	}
 }
 
 void create_BVH(Hittable** hittables, HittableWorld** world, int num_hittables)
 {
+	// Initialize memory for bvh nodes
+	BVHNode *internal_nodes, *leaf_nodes;
+	cudaMalloc(&internal_nodes, (num_hittables - 1) * sizeof(BVHNode));
+	cudaMalloc(&leaf_nodes, num_hittables * sizeof(BVHNode));
+
 	// Create morton codes for each centroid
 	unsigned int *morton_codes, *sorted_IDs;
 	cudaMalloc(&morton_codes, num_hittables * sizeof(unsigned int));
 	cudaMalloc(&sorted_IDs, num_hittables * sizeof(unsigned int));
 
-	create_morton_codes<<<3, 3>>>(hittables, world, num_hittables, morton_codes, sorted_IDs);
+	initialize_bvh_construction<<<3, 3>>>(hittables, world, num_hittables,
+			morton_codes, sorted_IDs, internal_nodes, leaf_nodes);
 	cudaDeviceSynchronize();
 
 	// Sort morton codes
@@ -190,7 +275,10 @@ void create_BVH(Hittable** hittables, HittableWorld** world, int num_hittables)
 			morton_codes, morton_codes + num_hittables, sorted_IDs);
 
 	// Build the tree hierarchy
-	build_BVH_tree<<<3, 3>>>(hittables, num_hittables, morton_codes, sorted_IDs);
+	build_BVH_tree<<<3, 3>>>(hittables, num_hittables, morton_codes,
+			sorted_IDs, internal_nodes, leaf_nodes);
+
+	print_bvh<<<1, 1>>>(internal_nodes, leaf_nodes, hittables);
 }
 
 #endif
