@@ -73,7 +73,8 @@ struct BVHNode
 	BVHNode *parent;
 	BVHNode* left;
 	BVHNode* right;
-	unsigned int object_id;
+	Hittable* hittable;
+
 	AABB bounding_box;
 };
 
@@ -208,7 +209,7 @@ void build_BVH_tree(Hittable** hittables, int num_hittables,
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if(idx < num_hittables)
-		leaf_nodes[idx].object_id = sorted_IDs[idx];
+		leaf_nodes[idx].hittable = hittables[sorted_IDs[idx]];
 
 	if(idx >= num_hittables - 1)
 		return;
@@ -251,9 +252,9 @@ void print_bvh(BVHNode *internal_nodes, BVHNode *leaf_nodes, Hittable** hittable
 		{
 			printf("	left leaf\n");
 			printf("		Sphere bbox->centroid (%.2f, %.2f, %.2f)\n",
-					hittables[internal_nodes[i].left->object_id]->bounding_box->centroid.x,
-					hittables[internal_nodes[i].left->object_id]->bounding_box->centroid.y,
-					hittables[internal_nodes[i].left->object_id]->bounding_box->centroid.z);
+					internal_nodes[i].left->hittable->bounding_box->centroid.x,
+					internal_nodes[i].left->hittable->bounding_box->centroid.y,
+					internal_nodes[i].left->hittable->bounding_box->centroid.z);
 		}
 		else
 		{
@@ -263,9 +264,9 @@ void print_bvh(BVHNode *internal_nodes, BVHNode *leaf_nodes, Hittable** hittable
 		{
 			printf("	right leaf\n");
 			printf("		Sphere bbox->centroid (%.2f, %.2f, %.2f)\n",
-					hittables[internal_nodes[i].right->object_id]->bounding_box->centroid.x,
-					hittables[internal_nodes[i].right->object_id]->bounding_box->centroid.y,
-					hittables[internal_nodes[i].right->object_id]->bounding_box->centroid.z);
+					internal_nodes[i].right->hittable->bounding_box->centroid.x,
+					internal_nodes[i].right->hittable->bounding_box->centroid.y,
+					internal_nodes[i].right->hittable->bounding_box->centroid.z);
 		}
 		else
 		{
@@ -284,8 +285,8 @@ void calculate_BVH_bounding_boxes(BVHNode* leaf_nodes, Hittable** hittables, int
 
 	// Assign the bounding box of the hittable to the leaf
 	leaf_nodes[idx].bounding_box = AABB(
-			hittables[leaf_nodes[idx].object_id]->bounding_box->min,
-			hittables[leaf_nodes[idx].object_id]->bounding_box->max);
+			leaf_nodes[idx].hittable->bounding_box->min,
+			leaf_nodes[idx].hittable->bounding_box->max);
 
 	BVHNode* this_node = leaf_nodes[idx].parent;
 	while(this_node != NULL)
@@ -312,8 +313,11 @@ void calculate_BVH_bounding_boxes(BVHNode* leaf_nodes, Hittable** hittables, int
 	}
 }
 
-void create_BVH(Hittable** hittables, HittableWorld** world, int num_hittables)
+BVHNode* create_BVH(Hittable** hittables, HittableWorld** world, int num_hittables)
 {
+	int dims = 8;
+	int threads = 8;
+
 	// Initialize memory for bvh nodes
 	BVHNode *internal_nodes, *leaf_nodes;
 	cudaMalloc(&internal_nodes, (num_hittables - 1) * sizeof(BVHNode));
@@ -324,7 +328,7 @@ void create_BVH(Hittable** hittables, HittableWorld** world, int num_hittables)
 	cudaMalloc(&morton_codes, num_hittables * sizeof(unsigned int));
 	cudaMalloc(&sorted_IDs, num_hittables * sizeof(unsigned int));
 
-	initialize_bvh_construction<<<3, 3>>>(hittables, world, num_hittables,
+	initialize_bvh_construction<<<dims, threads>>>(hittables, world, num_hittables,
 			morton_codes, sorted_IDs, internal_nodes, leaf_nodes);
 	cudaDeviceSynchronize();
 
@@ -333,13 +337,62 @@ void create_BVH(Hittable** hittables, HittableWorld** world, int num_hittables)
 			morton_codes, morton_codes + num_hittables, sorted_IDs);
 
 	// Build the tree hierarchy
-	build_BVH_tree<<<3, 3>>>(hittables, num_hittables, morton_codes,
+	build_BVH_tree<<<dims, threads>>>(hittables, num_hittables, morton_codes,
 			sorted_IDs, internal_nodes, leaf_nodes);
 	cudaDeviceSynchronize();
 
-	calculate_BVH_bounding_boxes<<<3, 3>>>(leaf_nodes, hittables, num_hittables);
+	calculate_BVH_bounding_boxes<<<dims, threads>>>(leaf_nodes, hittables, num_hittables);
 
-	print_bvh<<<1, 1>>>(internal_nodes, leaf_nodes, hittables);
+	//print_bvh<<<1, 1>>>(internal_nodes, leaf_nodes, hittables);
+
+	// NOTE: Figure out where to free internal_nodes and leaf_nodes cuda memory!!
+	cudaFree(morton_codes);
+	cudaFree(sorted_IDs);
+	
+	return &internal_nodes[0];
+}
+
+__device__ bool hit_BVH(BVHNode* root, const ray& r,
+		float t_min, float t_max, hit_record& rec)
+{
+	// Allocate traversal stack from thread-local memory
+	BVHNode* stack[64];
+	BVHNode** stack_ptr = stack;
+	*stack_ptr++ = NULL;
+
+	BVHNode* node = root;
+	bool any_hit = false;
+
+	while(node != NULL)
+	{
+		bool hit_left = node->left->bounding_box.hit(r, t_min, t_max);
+		bool hit_right = node->right->bounding_box.hit(r, t_min, t_max);
+
+		bool local_hit = false;
+
+		if(hit_left)
+		{
+			if(node->left->type == bvh_node_type::leaf)
+				local_hit = node->left->hittable->hit(r, t_min, t_max, rec);
+			else
+				*stack_ptr++ = node->left;
+		}
+
+		if(hit_right)
+		{
+			if(node->right->type == bvh_node_type::leaf)
+				local_hit = node->right->hittable->hit(r, t_min, t_max, rec);
+			else
+				*stack_ptr++ = node->right;
+		}
+
+		if(local_hit)
+			any_hit = true;
+
+		node = *--stack_ptr;
+	}
+
+	return any_hit;
 }
 
 #endif
