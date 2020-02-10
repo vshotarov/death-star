@@ -56,6 +56,7 @@ struct BVHNode
 	{
 		BVHNode node;
 		node.type = bvh_node_type::internal;
+		node.atomic_visited_flag = 0;
 		return node;
 	}
 
@@ -63,14 +64,17 @@ struct BVHNode
 	{
 		BVHNode node;
 		node.type = bvh_node_type::leaf;
+		node.atomic_visited_flag = 0;
 		return node;
 	}
 
 	bvh_node_type type;
+	int atomic_visited_flag;
 	BVHNode *parent;
 	BVHNode* left;
 	BVHNode* right;
 	unsigned int object_id;
+	AABB bounding_box;
 };
 
 __device__ uint2 determine_range(unsigned int *morton_codes, int i, int num_leaf_nodes)
@@ -223,6 +227,9 @@ void build_BVH_tree(Hittable** hittables, int num_hittables,
 
 	internal_nodes[idx].left->parent = &internal_nodes[idx];
 	internal_nodes[idx].right->parent = &internal_nodes[idx];
+
+	if(idx == 0)
+		internal_nodes[idx].parent = NULL;
 }
 
 __global__
@@ -231,6 +238,15 @@ void print_bvh(BVHNode *internal_nodes, BVHNode *leaf_nodes, Hittable** hittable
 	for(int i=0; i<8; i++)
 	{
 		printf("Internal %i\n", i);
+		printf("	bbox\n");
+		printf("		min(%.2f, %.2f, %.2f)\n",
+				internal_nodes[i].bounding_box.min.x,
+				internal_nodes[i].bounding_box.min.y,
+				internal_nodes[i].bounding_box.min.z);
+		printf("		max(%.2f, %.2f, %.2f)\n",
+				internal_nodes[i].bounding_box.max.x,
+				internal_nodes[i].bounding_box.max.y,
+				internal_nodes[i].bounding_box.max.z);
 		if(internal_nodes[i].left->type == bvh_node_type::leaf)
 		{
 			printf("	left leaf\n");
@@ -240,7 +256,9 @@ void print_bvh(BVHNode *internal_nodes, BVHNode *leaf_nodes, Hittable** hittable
 					hittables[internal_nodes[i].left->object_id]->bounding_box->centroid.z);
 		}
 		else
+		{
 			printf("	left internal\n");
+		}
 		if(internal_nodes[i].right->type == bvh_node_type::leaf)
 		{
 			printf("	right leaf\n");
@@ -250,7 +268,47 @@ void print_bvh(BVHNode *internal_nodes, BVHNode *leaf_nodes, Hittable** hittable
 					hittables[internal_nodes[i].right->object_id]->bounding_box->centroid.z);
 		}
 		else
+		{
 			printf("	right internal\n");
+		}
+	}
+}
+
+__global__
+void calculate_BVH_bounding_boxes(BVHNode* leaf_nodes, Hittable** hittables, int num_hittables)
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if(idx >= num_hittables)
+		return;
+
+	// Assign the bounding box of the hittable to the leaf
+	leaf_nodes[idx].bounding_box = AABB(
+			hittables[leaf_nodes[idx].object_id]->bounding_box->min,
+			hittables[leaf_nodes[idx].object_id]->bounding_box->max);
+
+	BVHNode* this_node = leaf_nodes[idx].parent;
+	while(this_node != NULL)
+	{
+		if(atomicCAS(&(this_node->atomic_visited_flag), 0, 1))
+		{
+			// If this is the second time we are visiting this node,
+			// that means all of it's children have been computed and
+			// we can safely compute this one's bounding box
+			this_node->bounding_box = surrounding_box(
+					this_node->left->bounding_box,
+					this_node->right->bounding_box);
+
+			this_node = this_node->parent;
+		}
+		else
+		{
+			// This is the first time we are visiting this node, which
+			// means that some of it's children have not been computed yes,
+			// so we kill this thread, but next time this node is visited it will
+			// be computed
+			return;
+		}
 	}
 }
 
@@ -277,6 +335,9 @@ void create_BVH(Hittable** hittables, HittableWorld** world, int num_hittables)
 	// Build the tree hierarchy
 	build_BVH_tree<<<3, 3>>>(hittables, num_hittables, morton_codes,
 			sorted_IDs, internal_nodes, leaf_nodes);
+	cudaDeviceSynchronize();
+
+	calculate_BVH_bounding_boxes<<<3, 3>>>(leaf_nodes, hittables, num_hittables);
 
 	print_bvh<<<1, 1>>>(internal_nodes, leaf_nodes, hittables);
 }
