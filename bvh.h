@@ -362,18 +362,26 @@ __device__ bool hit_BVH(BVHNode* root, const ray& r,
 
 	BVHNode* node = root;
 	bool any_hit = false;
+	float this_t_max = t_max;
 
 	while(node != NULL)
 	{
-		bool hit_left = node->left->bounding_box.hit(r, t_min, t_max);
-		bool hit_right = node->right->bounding_box.hit(r, t_min, t_max);
+		bool hit_left = node->left->bounding_box.hit(r, t_min, this_t_max);
+		bool hit_right = node->right->bounding_box.hit(r, t_min, this_t_max);
 
 		bool local_hit = false;
 
 		if(hit_left)
 		{
 			if(node->left->type == bvh_node_type::leaf)
-				local_hit = node->left->hittable->hit(r, t_min, t_max, rec);
+			{
+				local_hit = node->left->hittable->hit(r, t_min, this_t_max, rec);
+				if(local_hit)
+				{
+					this_t_max = rec.t;
+					any_hit = true;
+				}
+			}
 			else
 				*stack_ptr++ = node->left;
 		}
@@ -381,13 +389,17 @@ __device__ bool hit_BVH(BVHNode* root, const ray& r,
 		if(hit_right)
 		{
 			if(node->right->type == bvh_node_type::leaf)
-				local_hit = node->right->hittable->hit(r, t_min, t_max, rec);
+			{
+				local_hit = node->right->hittable->hit(r, t_min, this_t_max, rec);
+				if(local_hit)
+				{
+					this_t_max = rec.t;
+					any_hit = true;
+				}
+			}
 			else
 				*stack_ptr++ = node->right;
 		}
-
-		if(local_hit)
-			any_hit = true;
 
 		node = *--stack_ptr;
 	}
