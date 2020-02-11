@@ -39,7 +39,10 @@ struct AABB
 				t_min = t0 > t_min ? t0 : t_min;
 				t_max = t1 < t_max ? t1 : t_max;
 
-				if(t_max <= t_min)
+				//if(t_max <= t_min)
+				// NOTE: I've adjusted this to allow fully flat bounding
+				// boxes (bounding planes really)
+				if(t_max < t_min)
 					return false;
 			}
 
