@@ -235,10 +235,7 @@ struct HittableWorld
 
 		__device__ ~HittableWorld() { destroy(); }
 
-		__device__ void destroy()
-		{
-			delete [] hittables;
-		};
+		__device__ void destroy() {};
 
 		__device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec)
 		{
