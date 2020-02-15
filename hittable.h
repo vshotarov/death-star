@@ -35,11 +35,7 @@ struct Sphere
 	public:
 		__device__ Sphere() {};
 		__device__ Sphere(vec3 center, float radius) :
-			center(center), radius(radius)
-		{
-			bounding_box = AABB(vec3(center.x-radius, center.y-radius, center.z-radius),
-							    vec3(center.x+radius, center.y+radius, center.z+radius));
-		}
+			center(center), radius(radius) {}
 		__device__ void destroy() {};
 
 		__device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec)
@@ -71,9 +67,6 @@ struct Sphere
 			}
 			return false;
 		}
-
-		AABB bounding_box;
-
 	private:
 		vec3 center;
 		float radius;
@@ -87,22 +80,6 @@ struct Triangle
 			A(A), B(B), C(C)
 		{
 			normal = normalize(cross(B-A, C-A));
-
-			float sx = A.x < B.x ? A.x : B.x;
-			sx = C.x < sx ? C.x : sx;
-			float sy = A.y < B.y ? A.y : B.y;
-			sy = C.y < sy ? C.y : sy;
-			float sz = A.z < B.z ? A.z : B.z;
-			sz = C.z < sz ? C.z : sz;
-
-			float lx = A.x > B.x ? A.x : B.x;
-			lx = C.x > lx ? C.x : lx;
-			float ly = A.y > B.y ? A.y : B.y;
-			ly = C.y > ly ? C.y : ly;
-			float lz = A.z > B.z ? A.z : B.z;
-			lz = C.z > lz ? C.z : lz;
-
-			bounding_box = AABB(vec3(sx,sy,sz), vec3(lx,ly,lz));
 		}
 
 		__device__ void destroy() {};
@@ -148,8 +125,6 @@ struct Triangle
 				return false;
 		}
 
-		AABB bounding_box;
-
 	private:
 		vec3 A;
 		vec3 B;
@@ -167,23 +142,40 @@ struct Hittable
 		__device__ hittable_type type() { return _type; }
 		__device__ ~Hittable() { destroy(); }
 
-		__device__ static Hittable* sphere(vec3 center, float radius,
+		__device__ static Hittable sphere(vec3 center, float radius,
 				Material* material)
 		{
-			Hittable* hittable = new Hittable(hittable_type::sphere,
+			Hittable hittable = Hittable(hittable_type::sphere,
 											  material);
-			hittable->_sphere = Sphere(center, radius);
-			hittable->bounding_box = &(hittable->_sphere.bounding_box);
+			hittable._sphere = Sphere(center, radius);
+			hittable.bounding_box = AABB(vec3(center.x-radius, center.y-radius, center.z-radius),
+							    vec3(center.x+radius, center.y+radius, center.z+radius));
 			return hittable;
 		}
 
-		__device__ static Hittable* triangle(vec3 a, vec3 b, vec3 c,
+		__device__ static Hittable triangle(vec3 A, vec3 B, vec3 C,
 				Material* material)
 		{
-			Hittable* hittable = new Hittable(hittable_type::triangle,
+			Hittable hittable = Hittable(hittable_type::triangle,
 											  material);
-			hittable->_triangle = Triangle(a, b, c);
-			hittable->bounding_box = &(hittable->_triangle.bounding_box);
+			hittable._triangle = Triangle(A, B, C);
+
+			float sx = A.x < B.x ? A.x : B.x;
+			sx = C.x < sx ? C.x : sx;
+			float sy = A.y < B.y ? A.y : B.y;
+			sy = C.y < sy ? C.y : sy;
+			float sz = A.z < B.z ? A.z : B.z;
+			sz = C.z < sz ? C.z : sz;
+
+			float lx = A.x > B.x ? A.x : B.x;
+			lx = C.x > lx ? C.x : lx;
+			float ly = A.y > B.y ? A.y : B.y;
+			ly = C.y > ly ? C.y : ly;
+			float lz = A.z > B.z ? A.z : B.z;
+			lz = C.z > lz ? C.z : lz;
+
+			hittable.bounding_box = AABB(vec3(sx,sy,sz), vec3(lx,ly,lz));
+
 			return hittable;
 		}
 
@@ -205,13 +197,14 @@ struct Hittable
 			return return_val;
 		}
 
-		AABB* bounding_box;
+		AABB bounding_box;
 
 	private:
 		hittable_type _type;
 		Material* material;
 
-		union {
+		union
+		{
 			Sphere _sphere;
 			Triangle _triangle;
 		};
@@ -229,15 +222,15 @@ struct Hittable
 struct HittableWorld
 {
 	public:
-		__device__ HittableWorld(Hittable** hittables, int num_hittables) :
+		__device__ HittableWorld(Hittable* hittables, int num_hittables) :
 			hittables(hittables), num_hittables(num_hittables)
 		{
-			bounding_box = AABB(hittables[0]->bounding_box->min,
-								hittables[0]->bounding_box->max);
+			bounding_box = AABB(hittables[0].bounding_box.min,
+								hittables[0].bounding_box.max);
 			if(num_hittables > 1)
 				for(int i=1; i<num_hittables; i++)
 					bounding_box = surrounding_box(bounding_box,
-							                       *hittables[i]->bounding_box);
+							                       hittables[i].bounding_box);
 		};
 
 		__device__ ~HittableWorld() { destroy(); }
@@ -254,7 +247,7 @@ struct HittableWorld
 
 			for(int i=0; i<num_hittables; i++)
 			{
-				if(hittables[i]->hit(r, t_min, this_t_max, rec))
+				if(hittables[i].hit(r, t_min, this_t_max, rec))
 				{
 					this_t_max = rec.t;
 					any_hit = true;
@@ -270,7 +263,7 @@ struct HittableWorld
 
 	private:
 		int num_hittables;
-		Hittable** hittables;
+		Hittable* hittables;
 };
 
 #endif

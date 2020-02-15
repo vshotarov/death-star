@@ -179,7 +179,7 @@ __device__ unsigned int find_split(unsigned int *morton_codes, const uint2& rang
 }
 
 __global__
-void initialize_bvh_construction(Hittable** hittables, HittableWorld** world, int num_hittables,
+void initialize_bvh_construction(Hittable* hittables, HittableWorld* world, int num_hittables,
 		unsigned int *morton_codes, unsigned int *sorted_IDs, BVHNode *internal_nodes,
 		BVHNode *leaf_nodes)
 	// We pass sorted_IDs, as well, as it's a convinient way of constructing it
@@ -189,11 +189,11 @@ void initialize_bvh_construction(Hittable** hittables, HittableWorld** world, in
 	if(idx >= num_hittables)
 		return;
 
-	vec3 scene_size = (*world)->bounding_box.max
-					- (*world)->bounding_box.min;
+	vec3 scene_size = world->bounding_box.max
+					- world->bounding_box.min;
 
-	morton_codes[idx] = morton3D((hittables[idx]->bounding_box->centroid
-								- (*world)->bounding_box.min) / scene_size);
+	morton_codes[idx] = morton3D((hittables[idx].bounding_box.centroid
+								- world->bounding_box.min) / scene_size);
 	sorted_IDs[idx] = idx;
 
 	leaf_nodes[idx] = BVHNode::leaf();
@@ -202,14 +202,14 @@ void initialize_bvh_construction(Hittable** hittables, HittableWorld** world, in
 }
 
 __global__
-void build_BVH_tree(Hittable** hittables, int num_hittables,
+void build_BVH_tree(Hittable* hittables, int num_hittables,
 		unsigned int *morton_codes, unsigned int *sorted_IDs,
 		BVHNode* internal_nodes, BVHNode* leaf_nodes)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if(idx < num_hittables)
-		leaf_nodes[idx].hittable = hittables[sorted_IDs[idx]];
+		leaf_nodes[idx].hittable = &(hittables[sorted_IDs[idx]]);
 
 	if(idx >= num_hittables - 1)
 		return;
@@ -234,7 +234,7 @@ void build_BVH_tree(Hittable** hittables, int num_hittables,
 }
 
 __global__
-void print_bvh(BVHNode *internal_nodes, BVHNode *leaf_nodes, Hittable** hittables)
+void print_bvh(BVHNode *internal_nodes, BVHNode *leaf_nodes, Hittable* hittables)
 {
 	for(int i=0; i<8; i++)
 	{
@@ -252,9 +252,9 @@ void print_bvh(BVHNode *internal_nodes, BVHNode *leaf_nodes, Hittable** hittable
 		{
 			printf("	left leaf\n");
 			printf("		Sphere bbox->centroid (%.2f, %.2f, %.2f)\n",
-					internal_nodes[i].left->hittable->bounding_box->centroid.x,
-					internal_nodes[i].left->hittable->bounding_box->centroid.y,
-					internal_nodes[i].left->hittable->bounding_box->centroid.z);
+					internal_nodes[i].left->hittable->bounding_box.centroid.x,
+					internal_nodes[i].left->hittable->bounding_box.centroid.y,
+					internal_nodes[i].left->hittable->bounding_box.centroid.z);
 		}
 		else
 		{
@@ -264,9 +264,9 @@ void print_bvh(BVHNode *internal_nodes, BVHNode *leaf_nodes, Hittable** hittable
 		{
 			printf("	right leaf\n");
 			printf("		Sphere bbox->centroid (%.2f, %.2f, %.2f)\n",
-					internal_nodes[i].right->hittable->bounding_box->centroid.x,
-					internal_nodes[i].right->hittable->bounding_box->centroid.y,
-					internal_nodes[i].right->hittable->bounding_box->centroid.z);
+					internal_nodes[i].right->hittable->bounding_box.centroid.x,
+					internal_nodes[i].right->hittable->bounding_box.centroid.y,
+					internal_nodes[i].right->hittable->bounding_box.centroid.z);
 		}
 		else
 		{
@@ -276,7 +276,7 @@ void print_bvh(BVHNode *internal_nodes, BVHNode *leaf_nodes, Hittable** hittable
 }
 
 __global__
-void calculate_BVH_bounding_boxes(BVHNode* leaf_nodes, Hittable** hittables, int num_hittables)
+void calculate_BVH_bounding_boxes(BVHNode* leaf_nodes, Hittable* hittables, int num_hittables)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -285,8 +285,8 @@ void calculate_BVH_bounding_boxes(BVHNode* leaf_nodes, Hittable** hittables, int
 
 	// Assign the bounding box of the hittable to the leaf
 	leaf_nodes[idx].bounding_box = AABB(
-			leaf_nodes[idx].hittable->bounding_box->min,
-			leaf_nodes[idx].hittable->bounding_box->max);
+			leaf_nodes[idx].hittable->bounding_box.min,
+			leaf_nodes[idx].hittable->bounding_box.max);
 
 	BVHNode* this_node = leaf_nodes[idx].parent;
 	while(this_node != NULL)
@@ -313,7 +313,7 @@ void calculate_BVH_bounding_boxes(BVHNode* leaf_nodes, Hittable** hittables, int
 	}
 }
 
-BVHNode* create_BVH(Hittable** hittables, HittableWorld** world, int num_hittables)
+BVHNode* create_BVH(Hittable* hittables, HittableWorld* world, int num_hittables)
 {
 	int dims = 8;
 	int threads = 8;

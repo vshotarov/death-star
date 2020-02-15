@@ -64,7 +64,7 @@ vec3 colour(const ray& r, BVHNode* bvh_root, curandState* rand_state, int max_bo
 
 __global__
 void initialize_renderer(int width, int height, curandState* rand_state,
-		Camera** camera)
+		Camera* camera)
 {
 	int x = blockIdx.x * blockDim.x + threadIdx.x;
 	int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -80,12 +80,12 @@ void initialize_renderer(int width, int height, curandState* rand_state,
 
 	// Initialize only one camera
 	if(pixel_id == 0)
-		*camera = new Camera((float)width / (float)height);
+		(*camera) = Camera((float)width / (float)height);
 }
 
 __global__
 void render(int width, int height, int num_samples, int max_bounces, float* pixel_buffer,
-		BVHNode* bvh_root, curandState* rand_state, Camera** camera)
+		BVHNode* bvh_root, curandState* rand_state, Camera* camera)
 {
 	int x = blockIdx.x * blockDim.x + threadIdx.x;
 	int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -110,7 +110,7 @@ void render(int width, int height, int num_samples, int max_bounces, float* pixe
 		float v = float(y + curand_uniform(&local_rand_state)) / f_height;
 
 		// Get ray through the pixel
-		ray r = (*camera)->get_ray(u, v);
+		ray r = camera->get_ray(u, v);
 
 		// Ray trace
 		out_colour += colour(r, bvh_root, &local_rand_state, max_bounces);
@@ -128,11 +128,10 @@ void render(int width, int height, int num_samples, int max_bounces, float* pixe
 }
 
 __global__
-void create_world(Hittable** hittables, HittableWorld** world)
+void create_world(Hittable* hittables, HittableWorld* world)
 {
-	create_random_spheres_and_triangles_scene(hittables, world);
+	create_random_spheres_and_triangles_scene(hittables, (*world));
 }
-
 
 int main(int argc, char** argv)
 {
@@ -160,18 +159,18 @@ int main(int argc, char** argv)
 	cudaMalloc((void**)&rand_state, (width * height) * sizeof(curandState));
 
 	// Camera
-	Camera** camera;
-	cudaMalloc((void**)&camera, 1 * sizeof(Camera));
+	Camera* camera;
+	cudaMalloc(&camera, 1 * sizeof(Camera));
 
 	initialize_renderer<<<blocks, threads>>>(width, height, rand_state,
 			camera);
 
 	// Create scene
-	Hittable** hittables;
-	HittableWorld** world;
+	Hittable* hittables;
+	HittableWorld* world;
 
-	cudaMalloc((void**)&hittables, 50 * sizeof(Hittable*));
-	cudaMalloc((void**)&world, 1 * sizeof(HittableWorld*));
+	cudaMalloc(&hittables, 50 * sizeof(Hittable));
+	cudaMalloc(&world, 1 * sizeof(HittableWorld));
 
 	create_world<<<1, 1>>>(hittables, world);
 
