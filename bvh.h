@@ -44,19 +44,35 @@ __device__ unsigned int morton3D(vec3 point)
     return xx * 4 + yy * 2 + zz;
 }
 
+__device__ int common_prefix(unsigned int* morton_codes, int i, int j, int num_hittables)
+{
+	if(i < 0 || i >= num_hittables || j < 0 || j >= num_hittables)
+		return -1;
+
+	unsigned int morton_i = morton_codes[i];
+	unsigned int morton_j = morton_codes[j];
+
+	if(morton_i == morton_j)
+		return __clzll(morton_i ^ morton_j) + __clzll(i ^ j);
+	else
+		return __clzll(morton_i ^ morton_j);
+}
+
 enum class bvh_node_type
 {
 	internal,
 	leaf
 };
 
-struct BVHNode
+struct __align__(32) BVHNode
 {
 	__device__ static BVHNode internal()
 	{
 		BVHNode node;
 		node.type = bvh_node_type::internal;
 		node.atomic_visited_flag = 0;
+		node.parent = NULL;
+		node.hittable = NULL;
 		return node;
 	}
 
@@ -65,6 +81,8 @@ struct BVHNode
 		BVHNode node;
 		node.type = bvh_node_type::leaf;
 		node.atomic_visited_flag = 0;
+		node.parent = NULL;
+		node.hittable = NULL;
 		return node;
 	}
 
@@ -85,62 +103,28 @@ __device__ uint2 determine_range(unsigned int *morton_codes, int i, int num_leaf
 		return make_uint2(0, num_leaf_nodes-1);
 	}
 
-	int delta_left = -1;
-	if(i > 0)
-		delta_left = __clz(morton_codes[i] ^ morton_codes[i-1]);
-	int delta_right = __clz(morton_codes[i] ^ morton_codes[i+1]);
-
-	int d = delta_right > delta_left ? 1 : -1;
+	int d = (common_prefix(morton_codes, i, i+1, num_leaf_nodes)
+		   - common_prefix(morton_codes, i, i-1, num_leaf_nodes)) >= 0 ? 1 : -1;
 
 	// Compute upper bound for the length of the range
-	int delta_min = delta_right > delta_left ? delta_left : delta_right;
+	int delta_min = common_prefix(morton_codes, i, i-d, num_leaf_nodes);
 	int lmax = 2;
-	int delta = -1;
-	int i_next = i + lmax * d;
-	
-	if(i_next >= 0 && i_next < num_leaf_nodes)
-		delta = __clz(morton_codes[i] ^
-					  morton_codes[i_next]);
 
-	while(delta > delta_min)
-	{
-		lmax <<= 1; // Equivalent to lmax *= 2
-		i_next = i + lmax * d;
-		delta = -1;
-
-		if(i_next >= 0 && i_next < num_leaf_nodes)
-			delta = __clz(morton_codes[i] ^
-						  morton_codes[i_next]);
-	}
+	while(common_prefix(morton_codes, i, i + lmax*d, num_leaf_nodes) > delta_min)
+		lmax *= 2;
 
 	// Find the other end using binary search
 	int l = 0;
 	int t = lmax >> 1; // Equivalent to t = lmax / 2;
+
 	while(t > 0)
 	{
-		i_next = i + (l + t) * d;
-		delta = -1;
-
-		if(i_next >= 0 && i_next < num_leaf_nodes)
-			delta = __clz(morton_codes[i] ^
-						  morton_codes[i_next]);
-
-		if(delta > delta_min)
-		{
+		if(common_prefix(morton_codes, i, i + (l + t) * d, num_leaf_nodes) > delta_min)
 			l += t;
-		}
-
-		t >>= 1; // Equivalent to t /= 2;
+		t /= 2;
 	}
 
 	unsigned int j = i + l * d;
-
-	if(d < 0)
-	{
-		unsigned int tmp = j;
-		j = i;
-		i = tmp;
-	}
 
 	return make_uint2(i, j);
 }
@@ -148,34 +132,28 @@ __device__ uint2 determine_range(unsigned int *morton_codes, int i, int num_leaf
 __device__ unsigned int find_split(unsigned int *morton_codes, const uint2& range,
 		int i, int num_leaf_nodes)
 {
-	unsigned int first_code = morton_codes[range.x];
-	unsigned int last_code = morton_codes[range.y];
+	// Originally I wrote this using the paper as a reference, but I couldn't get
+	// it to work properly when there were multiple hittable duplicates.
+	// Borrowing the code from https://github.com/henrikdahlberg/GPUPathTracer/blob/master/Source/Core/BVHConstruction.cu
+	// made it work, even though that loop is quite odd as it runs twice with
+	// t = (l + (divider - 1)) / divider  , where divider is 2
 
-	unsigned int split_position;
+	int delta_node = common_prefix(morton_codes, range.x, range.y, num_leaf_nodes);
+	int d = range.y >= range.x ? 1 : -1;
+	int s = 0;
+	int l = range.y >= range.x ? range.y - range.x : range.x - range.y;
+	int divider = 2;
 
-	if(first_code == last_code)
-		return (range.x + range.y) >> 1; // Split in the middle
-
-	int delta_node = __clz(first_code ^ last_code);
-
-	split_position = range.x;
-	int step = range.y - range.x;
-
-	do
+	for(int t=(l+divider-1)/divider; t>0; divider*=2)
 	{
-		step = (step + 1) >> 1;
-		int proposed_split = split_position + step;
+		if(common_prefix(morton_codes, range.x, range.x + (s + t) * d,
+					num_leaf_nodes) > delta_node)
+			s += t;
+		if(t==1) break;
+		t = (l + divider - 1) / divider;
+	}
 
-		if(proposed_split < range.y)
-		{
-			unsigned int split_code = morton_codes[proposed_split];
-			int split_prefix = __clz(first_code ^ split_code);
-			if(split_prefix > delta_node)
-				split_position = proposed_split;
-		}
-	} while(step > 1);
-
-	return split_position;
+	return range.x + s * d + min(d, 0);
 }
 
 __global__
@@ -217,11 +195,11 @@ void build_BVH_tree(Hittable* hittables, int num_hittables,
 	uint2 range = determine_range(morton_codes, idx, num_hittables);
 	int split_position = find_split(morton_codes, range, idx, num_hittables);
 
-	if(split_position == range.x)
+	if(split_position == min(range.x, range.y))
 		internal_nodes[idx].left = &leaf_nodes[split_position];
 	else
 		internal_nodes[idx].left = &internal_nodes[split_position];
-	if(split_position + 1 == range.y)
+	if(split_position + 1 == max(range.x, range.y))
 		internal_nodes[idx].right = &leaf_nodes[split_position + 1];
 	else
 		internal_nodes[idx].right = &internal_nodes[split_position + 1];
@@ -315,8 +293,8 @@ void calculate_BVH_bounding_boxes(BVHNode* leaf_nodes, Hittable* hittables, int 
 
 BVHNode* create_BVH(Hittable* hittables, HittableWorld* world, int num_hittables)
 {
-	int dims = 8;
-	int threads = 8;
+	int threads = 512;
+	int dims = (num_hittables + threads - 1) / threads;
 
 	// Initialize memory for bvh nodes
 	BVHNode *internal_nodes, *leaf_nodes;
