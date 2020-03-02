@@ -127,12 +127,6 @@ void render(int width, int height, int num_samples, int max_bounces, float* pixe
 	pixel_buffer[pixel_id * 3 + 2] = out_colour.z;
 }
 
-__global__
-void create_world(Hittable* hittables, HittableWorld* world)
-{
-	create_random_spheres_and_triangles_scene(hittables, (*world));
-}
-
 int main(int argc, char** argv)
 {
 	// Parse arguments
@@ -166,16 +160,11 @@ int main(int argc, char** argv)
 			camera);
 
 	// Create scene
-	Hittable* hittables;
-	HittableWorld* world;
-
-	cudaMalloc(&hittables, 50 * sizeof(Hittable));
-	cudaMalloc(&world, 1 * sizeof(HittableWorld));
-
-	create_world<<<1, 1>>>(hittables, world);
+	Scene scene;
+	create_custom_scene(scene);
 
 	// Create BVH
-	BVHNode* bvh_root = create_BVH(hittables, world, 50);
+	BVHNode* bvh_root = create_BVH(scene.hittables, scene.world, scene.num_hittables);
 
 	// Allocate memory for pixels
 	float *pixel_buffer, *d_pixel_buffer;
