@@ -138,6 +138,9 @@ int main(int argc, char** argv)
 	int num_samples = strtol(argv[3], &endptr, 10);
 	int max_bounces = strtol(argv[4], &endptr, 10);
 	char* out_file = argv[5];
+	char* obj_file = NULL;
+	if(argc > 6)
+		obj_file = argv[6];
 
 	printf("Initializing death-star for %ix%i pixels, %i samples and %i max bounces\n",
 			width, height, num_samples, max_bounces);
@@ -161,7 +164,10 @@ int main(int argc, char** argv)
 
 	// Create scene
 	Scene scene;
-	create_custom_scene(scene);
+	if(obj_file != NULL)
+		load_obj(scene, obj_file);
+	else
+		create_custom_scene(scene);
 
 	// Create BVH
 	BVHNode* bvh_root = create_BVH(scene.hittables, scene.world, scene.num_hittables);
