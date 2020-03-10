@@ -170,7 +170,7 @@ int main(int argc, char** argv)
 		create_custom_scene(scene);
 
 	// Create BVH
-	BVHNode* bvh_root = create_BVH(scene.hittables, scene.world, scene.num_hittables);
+	BVHNode* bvh_root = create_BVH(scene.hittables, scene.num_hittables);
 
 	// Allocate memory for pixels
 	float *pixel_buffer, *d_pixel_buffer;

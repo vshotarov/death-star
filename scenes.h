@@ -13,12 +13,10 @@ struct Scene
 {
 	int num_hittables;
 	Hittable* hittables;
-	HittableWorld* world;
 };
 
 __global__
-void create_RTOW_three_spheres_on_top_of_big_sphere_scene(Hittable* hittables,
-		HittableWorld* world)
+void create_RTOW_three_spheres_on_top_of_big_sphere_scene(Hittable* hittables)
 {
 	hittables[0] = Hittable::sphere(vec3(.0, .0, -1.0), .5,
 			Material::lambertian(vec3(.8, .3, .3)));
@@ -28,25 +26,19 @@ void create_RTOW_three_spheres_on_top_of_big_sphere_scene(Hittable* hittables,
 			Material::metal(vec3(.8, .6, .2), 0.0f));
 	hittables[3] = Hittable::sphere(vec3(-1.0, 0.0, -1.0), .5,
 			Material::metal(vec3(.8, .8, .8), 0.3f));
-
-	*world = HittableWorld(hittables, 4);
 }
 
 __global__
-void create_sphere_on_top_of_big_sphere_scene(Hittable* hittables,
-		HittableWorld* world)
+void create_sphere_on_top_of_big_sphere_scene(Hittable* hittables)
 {
 	Material* material = Material::lambertian(vec3(.5, .5, .5));
 
 	hittables[0] = Hittable::sphere(vec3(.0, .0, -1.0), .5, material);
 	hittables[1] = Hittable::sphere(vec3(.0, -100.5, -1.0), 100, material);
-
-	*world = HittableWorld(hittables, 2);
 }
 
 __global__
-void create_sphere_and_two_triangles_scene(Hittable* hittables,
-		HittableWorld* world)
+void create_sphere_and_two_triangles_scene(Hittable* hittables)
 {
 	Material* material = Material::lambertian(vec3(.5, .5, .5));
 
@@ -57,13 +49,10 @@ void create_sphere_and_two_triangles_scene(Hittable* hittables,
 	hittables[2] = Hittable::triangle(vec3(.0f, 0.0f, -1.0f),
 								  vec3(-.5f, 0.5f, -1.0f),
 								  vec3(-1.5f, -.2f, -1.0f), material);
-
-	*world = HittableWorld(hittables, 3);
 }
 
 __global__
-void create_random_spheres_and_triangles_scene(Hittable* hittables,
-		HittableWorld* world, int num_hittables = 50)
+void create_random_spheres_and_triangles_scene(Hittable* hittables, int num_hittables = 50)
 {
 	curandState rand_state;
 	int seed = 2020;
@@ -99,12 +88,10 @@ void create_random_spheres_and_triangles_scene(Hittable* hittables,
 					material);
 		}
 	}
-
-	*world = HittableWorld(hittables, num_hittables);
 }
 
 __global__
-void create_BVH_test_scene(Hittable* hittables, HittableWorld* world)
+void create_BVH_test_scene(Hittable* hittables)
 {
 	Material* material = Material::lambertian(vec3(.5, .5, .5));
 	for(int i=0; i<3; i++)
@@ -114,7 +101,6 @@ void create_BVH_test_scene(Hittable* hittables, HittableWorld* world)
 			hittables[i*3+j] = Hittable::sphere(vec3((i-1)*2,(j-1)*2,-1.0), .5, material);
 		}
 	}
-	*world = HittableWorld(hittables, 9);
 }
 
 void create_custom_scene(Scene& scene)
@@ -122,13 +108,12 @@ void create_custom_scene(Scene& scene)
 	scene.num_hittables = 50;
 
 	cudaMalloc(&(scene.hittables), scene.num_hittables * sizeof(Hittable));
-	cudaMalloc(&(scene.world), 1 * sizeof(HittableWorld));
 
-	create_random_spheres_and_triangles_scene<<<1, 1>>>(scene.hittables, scene.world);
+	create_random_spheres_and_triangles_scene<<<1, 1>>>(scene.hittables);
 }
 
 __global__
-void create_obj_hittables(Hittable* hittables, HittableWorld* world, int num_hittables,
+void create_obj_hittables(Hittable* hittables, int num_hittables,
 	Material* material, int num_shapes, int* shape_sizes, tinyobj::index_t* indices,
 	float* vertices, float* normals)
 {
@@ -197,12 +182,6 @@ void create_obj_hittables(Hittable* hittables, HittableWorld* world, int num_hit
 }
 
 __global__
-void create_obj_world(Hittable* hittables, HittableWorld* world, int num_hittables)
-{
-	*world = HittableWorld(hittables, num_hittables);
-}
-
-__global__
 void initialize_obj_material(Material* material)
 {
 	*material = *Material::lambertian(vec3(.5, .5, .5));
@@ -264,7 +243,6 @@ void load_obj(Scene& scene, const char* obj_file)
 	cudaMemcpy(normals, &(attrib.normals[0]), attrib.normals.size() * sizeof(float), cudaMemcpyHostToDevice);
 
 	cudaMalloc(&(scene.hittables), scene.num_hittables * sizeof(Hittable));
-	cudaMalloc(&(scene.world), 1 * sizeof(HittableWorld));
 
 	int threads = 512;
 	int dims = (scene.num_hittables + threads - 1) / threads;
@@ -275,11 +253,8 @@ void load_obj(Scene& scene, const char* obj_file)
 
 	initialize_obj_material<<<1, 1>>>(material);
 
-	create_obj_hittables<<<dims, threads>>>(scene.hittables, scene.world, scene.num_hittables,
+	create_obj_hittables<<<dims, threads>>>(scene.hittables, scene.num_hittables,
 			material, num_shapes, d_shape_sizes, d_indices, vertices, normals);
-	cudaDeviceSynchronize();
-
-	create_obj_world<<<1, 1>>>(scene.hittables, scene.world, scene.num_hittables);
 	cudaDeviceSynchronize();
 
     cudaError cudaErr = cudaGetLastError();
@@ -289,6 +264,7 @@ void load_obj(Scene& scene, const char* obj_file)
                  cudaGetErrorString( cudaErr ) );
         exit( -1 );
     }
+	printf("loaded obj\n");
 
 	//exit(0);
 }

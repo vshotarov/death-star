@@ -157,7 +157,19 @@ __device__ unsigned int find_split(unsigned int *morton_codes, const uint2& rang
 }
 
 __global__
-void initialize_bvh_construction(Hittable* hittables, HittableWorld* world, int num_hittables,
+void calculate_world_bounding_box(Hittable* hittables, int num_hittables,
+		AABB* world_bounding_box)
+{
+	world_bounding_box->min = hittables[0].bounding_box.min;
+	world_bounding_box->max = hittables[0].bounding_box.max;
+	if(num_hittables > 1)
+		for(int i=1; i<num_hittables; i++)
+			*world_bounding_box = surrounding_box(*world_bounding_box,
+											      hittables[i].bounding_box);
+}
+
+__global__
+void initialize_bvh_construction(Hittable* hittables, int num_hittables, AABB* world_bounding_box,
 		unsigned int *morton_codes, unsigned int *sorted_IDs, BVHNode *internal_nodes,
 		BVHNode *leaf_nodes)
 	// We pass sorted_IDs, as well, as it's a convinient way of constructing it
@@ -167,11 +179,12 @@ void initialize_bvh_construction(Hittable* hittables, HittableWorld* world, int 
 	if(idx >= num_hittables)
 		return;
 
-	vec3 scene_size = world->bounding_box.max
-					- world->bounding_box.min;
+	// Calculate all hittables merged bounding box
+	vec3 scene_size = world_bounding_box->max
+					- world_bounding_box->min;
 
 	morton_codes[idx] = morton3D((hittables[idx].bounding_box.centroid
-								- world->bounding_box.min) / scene_size);
+								- world_bounding_box->min) / scene_size);
 	sorted_IDs[idx] = idx;
 
 	leaf_nodes[idx] = BVHNode::leaf();
@@ -291,7 +304,7 @@ void calculate_BVH_bounding_boxes(BVHNode* leaf_nodes, Hittable* hittables, int 
 	}
 }
 
-BVHNode* create_BVH(Hittable* hittables, HittableWorld* world, int num_hittables)
+BVHNode* create_BVH(Hittable* hittables, int num_hittables)
 {
 	int threads = 512;
 	int dims = (num_hittables + threads - 1) / threads;
@@ -301,13 +314,18 @@ BVHNode* create_BVH(Hittable* hittables, HittableWorld* world, int num_hittables
 	cudaMalloc(&internal_nodes, (num_hittables - 1) * sizeof(BVHNode));
 	cudaMalloc(&leaf_nodes, num_hittables * sizeof(BVHNode));
 
+	// Calcluate world bounding box, as it's needed for localizing morton codes
+	AABB* world_bounding_box;
+	cudaMalloc(&world_bounding_box, sizeof(AABB));
+	calculate_world_bounding_box<<<1, 1>>>(hittables, num_hittables, world_bounding_box);
+
 	// Create morton codes for each centroid
 	unsigned int *morton_codes, *sorted_IDs;
 	cudaMalloc(&morton_codes, num_hittables * sizeof(unsigned int));
 	cudaMalloc(&sorted_IDs, num_hittables * sizeof(unsigned int));
 
-	initialize_bvh_construction<<<dims, threads>>>(hittables, world, num_hittables,
-			morton_codes, sorted_IDs, internal_nodes, leaf_nodes);
+	initialize_bvh_construction<<<dims, threads>>>(hittables, num_hittables,
+			world_bounding_box, morton_codes, sorted_IDs, internal_nodes, leaf_nodes);
 	cudaDeviceSynchronize();
 
 	// Sort morton codes
