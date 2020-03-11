@@ -3,8 +3,9 @@
 
 #include "camera.h"
 #include "hittable.h"
-#include "scenes.h"
+#include "template_scenes.h"
 #include "bvh.h"
+#include "loadOBJ.h"
 
 #include <float.h>
 #include <iostream>
@@ -164,10 +165,13 @@ int main(int argc, char** argv)
 
 	// Create scene
 	Scene scene;
+	scene.num_hittables = 0;
 	if(obj_file != NULL)
+	{
 		load_obj(scene, obj_file);
+	}
 	else
-		create_custom_scene(scene);
+		create_template_scene(scene);
 
 	// Create BVH
 	BVHNode* bvh_root = create_BVH(scene.hittables, scene.num_hittables);

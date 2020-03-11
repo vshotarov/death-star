@@ -3,7 +3,6 @@
 
 #include "ray.h"
 #include "random.h"
-#include "hittable.h"
 #include "shading_utils.h"
 
 #include <glm/glm.hpp>
