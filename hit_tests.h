@@ -91,4 +91,33 @@ bool hit_triangle(const vec3& A, const vec3& B, const vec3& C, const vec3& norma
 		return false;
 }
 
+__device__ bool hit_AABB(const vec3& min, const vec3& max, const ray& r,
+		float t_min, float t_max)
+{
+	for(int a=0; a<3; a++)
+	{
+		float invD = 1.0f / r.direction[a];
+		float t0 = (min[a] - r.origin[a]) * invD;
+		float t1 = (max[a] - r.origin[a]) * invD;
+
+		if (invD < 0.0f)
+		{
+			float tmp = t0;
+			t0 = t1;
+			t1 = tmp;
+		}
+
+		t_min = t0 > t_min ? t0 : t_min;
+		t_max = t1 < t_max ? t1 : t_max;
+
+		//if(t_max <= t_min)
+		// NOTE: I've adjusted this to allow fully flat bounding
+		// boxes (bounding planes really)
+		if(t_max < t_min)
+			return false;
+	}
+
+	return true;
+}
+
 #endif

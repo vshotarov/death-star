@@ -362,8 +362,10 @@ __device__ bool hit_BVH(BVHNode* root, const ray& r,
 
 	while(node != NULL)
 	{
-		bool hit_left = node->left->bounding_box.hit(r, t_min, this_t_max);
-		bool hit_right = node->right->bounding_box.hit(r, t_min, this_t_max);
+		bool hit_left = hit_AABB(node->left->bounding_box.min,
+				node->left->bounding_box.max, r, t_min, this_t_max);
+		bool hit_right = hit_AABB(node->right->bounding_box.min,
+				node->right->bounding_box.max, r, t_min, this_t_max);
 
 		bool local_hit = false;
 
