@@ -1,0 +1,55 @@
+Initializing death-star for 200x100 pixels, 3 samples and 3 max bounces
+Material file [ two_objs.mtl ] not found in a path : 
+Failed to load material file(s). Use default material.
+material [ 'blinn2SG' ] not found in .mtl
+material [ 'blinn1SG' ] not found in .mtl
+
+num shapes 2, num hittables 124, num shapes 2
+========= CUDA-MEMCHECK
+========= Program hit cudaErrorMemoryAllocation (error 2) due to "out of memory" on CUDA API call to cudaMalloc. 
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame:/lib64/libcuda.so.1 [0x3a0403]
+=========     Host Frame:./run [0x7c759]
+=========     Host Frame:./run [0x1493d]
+=========     Host Frame:./run [0x7649]
+=========     Host Frame:./run [0x11b18]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xf3) [0x24413]
+=========     Host Frame:./run [0x708e]
+=========
+========= Program hit cudaErrorInvalidConfiguration (error 9) due to "invalid configuration argument" on CUDA API call to cudaLaunchKernel. 
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame:/lib64/libcuda.so.1 [0x3a0403]
+=========     Host Frame:./run [0x864c5]
+=========     Host Frame:./run [0x14bcb]
+=========     Host Frame:./run [0x1270a]
+=========     Host Frame:./run [0x12765]
+=========     Host Frame:./run [0x77d5]
+=========     Host Frame:./run [0x11b18]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xf3) [0x24413]
+=========     Host Frame:./run [0x708e]
+=========
+========= Program hit cudaErrorInvalidConfiguration (error 9) due to "invalid configuration argument" on CUDA API call to cudaLaunchKernel. 
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame:/lib64/libcuda.so.1 [0x3a0403]
+=========     Host Frame:./run [0x864c5]
+=========     Host Frame:./run [0x14bcb]
+=========     Host Frame:./run [0x128e5]
+=========     Host Frame:./run [0x12939]
+=========     Host Frame:./run [0x78a6]
+=========     Host Frame:./run [0x11b18]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xf3) [0x24413]
+=========     Host Frame:./run [0x708e]
+=========
+========= Program hit cudaErrorInvalidConfiguration (error 9) due to "invalid configuration argument" on CUDA API call to cudaLaunchKernel. 
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame:/lib64/libcuda.so.1 [0x3a0403]
+=========     Host Frame:./run [0x864c5]
+=========     Host Frame:./run [0x14bcb]
+=========     Host Frame:./run [0x12bb3]
+=========     Host Frame:./run [0x12bec]
+=========     Host Frame:./run [0x7925]
+=========     Host Frame:./run [0x11b18]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xf3) [0x24413]
+=========     Host Frame:./run [0x708e]
+=========
+========= ERROR SUMMARY: 4 errors

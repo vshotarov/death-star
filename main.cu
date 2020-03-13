@@ -56,13 +56,25 @@ int main(int argc, char** argv)
 
 	// Create scene
 	Scene scene;
-	scene.num_hittables = 0;
-	if(obj_file != NULL)
-	{
-		load_obj(scene, obj_file);
-	}
-	else
-		create_template_scene(scene);
+
+	objData obj = load_obj(obj_file);
+	objData obj2 = load_obj("/home/vshotarov/Downloads/bunny.obj");
+	scene.num_hittables = obj.num_triangles + obj2.num_triangles + 2;
+
+	cudaMalloc(&(scene.hittables), scene.num_hittables * sizeof(Hittable));
+
+	create_sphere_on_top_of_big_sphere_scene<<<1, 1>>>(scene.hittables);
+
+	Material* material;
+	cudaMalloc(&(material), sizeof(Material));
+
+	initialize_obj_material<<<1, 1>>>(material);
+
+	int obj_threads = 512;
+    int obj_dims = (obj.num_triangles + obj_threads - 1) / obj_threads;
+	create_obj_hittables<<<obj_dims, obj_threads>>>(scene.hittables, material, obj, 2);
+    obj_dims = (obj2.num_triangles + obj_threads - 1) / obj_threads;
+	create_obj_hittables<<<obj_dims, obj_threads>>>(scene.hittables, material, obj2, obj.num_triangles);
 
 	// Create BVH
 	BVHNode* bvh_root = create_BVH(scene.hittables, scene.num_hittables);
