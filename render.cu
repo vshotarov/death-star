@@ -51,8 +51,7 @@ vec3 colour(const ray& r, BVHNode* bvh_root, curandState* rand_state, int max_bo
 }
 
 __global__
-void initialize_renderer(int width, int height, curandState* rand_state,
-		Camera* camera)
+void initialize_renderer(int width, int height, curandState* rand_state)
 {
 	int x = blockIdx.x * blockDim.x + threadIdx.x;
 	int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -65,10 +64,13 @@ void initialize_renderer(int width, int height, curandState* rand_state,
 	// Initialize random number states for each pixel
 	int seed = 2020;
 	curand_init(seed, pixel_id, 0, &rand_state[pixel_id]);
+}
 
-	// Initialize only one camera
-	if(pixel_id == 0)
-		(*camera) = Camera((float)width / (float)height);
+__global__
+void initialize_camera(Camera* camera, vec3 look_from, vec3 look_at, vec3 up,
+		float fov, float aspect_ratio)
+{
+	(*camera) = Camera(look_from, look_at, up, fov, aspect_ratio);
 }
 
 __global__

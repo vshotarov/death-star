@@ -3,21 +3,33 @@
 
 #include "ray.h"
 
+#include <cstdlib>
+
 struct Camera
 {
 	public:
-		__device__ Camera(float aspect_ratio)
+		__device__ Camera(vec3 look_from, vec3 look_at, vec3 up, float fov, float aspect_ratio)
+		// fov is top to bottom in degrees
 		{
-			lower_left_corner = vec3(-2.0, -1.0, -1.0);
-			horizontal = vec3(2.0 * aspect_ratio, .0, .0);
-			vertical = vec3(.0, 2.0, .0);
-			origin = vec3(.0, .0, .0);
+			vec3 u, v , w;
+			float theta = fov * M_PI/180;
+			float half_height = tan(theta/2);
+			float half_width = aspect_ratio * half_height;
+
+			w = unit_vector(look_from - look_at);
+			u = unit_vector(cross(up, w));
+			v = cross(w, u);
+
+			origin = look_from;
+			lower_left_corner = origin - half_width*u - half_height*v - w;
+			horizontal = 2 * half_width * u;
+			vertical = 2 * half_height * v;
 		}
 
 		__device__ ray get_ray(float u, float v)
 		{
 			return ray(origin,
-				  unit_vector(lower_left_corner + u*horizontal + v*vertical));
+				  unit_vector(lower_left_corner + u*horizontal + v*vertical - origin));
 		}
 
 	private:
