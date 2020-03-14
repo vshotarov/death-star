@@ -19,6 +19,30 @@
 using namespace glm;
 
 
+// Since memory for hittables must already be allocated when creating
+// them on the GPU, I currently store a static number of how many hittables
+// are manually created.
+// It is far less than ideal, and a potential workaround would be to instead
+// of creating them directly on the GPU, I create a bunch of sphereData and
+// triangleData structs, similar to the ones I create for .obj files, which
+// are stored on the CPU, so we can use their count to allocate the correct
+// amount of memory for hittables, before sending them off the the GPU to be created.
+//
+// The reason I am not fully keen on that, is that we'll have an extra step
+// and also a copy for each sphere and triangle on the CPU, which seems wasteful
+//
+// Additionally, most high profile renderers, have their own file formats (
+// Arnold .ass, Renderman RIB, etc.) that describe a scene, which contain
+// the number of objects to render, so in those cases, the number of hittables
+// is always known, so there is no need for neither the above mentioned proceedure
+// nor the following manually maintained static value.
+#define num_manually_defined_hittables 2
+__global__
+void populate_scene(Hittable* hittables, int start_id)
+{
+	create_sphere_on_top_of_big_sphere_scene(hittables, start_id);
+}
+
 int main(int argc, char** argv)
 {
 	// Parse arguments
@@ -59,11 +83,9 @@ int main(int argc, char** argv)
 
 	objData obj = load_obj(obj_file);
 	objData obj2 = load_obj("/home/vshotarov/Downloads/bunny.obj");
-	scene.num_hittables = obj.num_triangles + obj2.num_triangles + 2;
+	scene.num_hittables = obj.num_triangles + obj2.num_triangles + num_manually_defined_hittables;
 
 	cudaMalloc(&(scene.hittables), scene.num_hittables * sizeof(Hittable));
-
-	create_sphere_on_top_of_big_sphere_scene<<<1, 1>>>(scene.hittables);
 
 	Material* material;
 	cudaMalloc(&(material), sizeof(Material));
@@ -72,9 +94,12 @@ int main(int argc, char** argv)
 
 	int obj_threads = 512;
     int obj_dims = (obj.num_triangles + obj_threads - 1) / obj_threads;
-	create_obj_hittables<<<obj_dims, obj_threads>>>(scene.hittables, material, obj, 2);
+	create_obj_hittables<<<obj_dims, obj_threads>>>(scene.hittables, material, obj, 0);
+
     obj_dims = (obj2.num_triangles + obj_threads - 1) / obj_threads;
 	create_obj_hittables<<<obj_dims, obj_threads>>>(scene.hittables, material, obj2, obj.num_triangles);
+
+	populate_scene<<<1, 1>>>(scene.hittables, obj.num_triangles + obj2.num_triangles);
 
 	// Create BVH
 	BVHNode* bvh_root = create_BVH(scene.hittables, scene.num_hittables);
