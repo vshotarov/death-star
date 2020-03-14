@@ -33,7 +33,7 @@
 // is always known, so there is no need for neither the above mentioned proceedure
 // nor the following manually maintained static value.
 __global__
-void manually_populate_scene(Hittable* hittables, int start_id)
+void manually_populate_scene(Hittable* hittables, int start_id, curandState* rand_state)
 {
 //#define num_manually_defined_hittables 2
 //	create_sphere_on_top_of_big_sphere_scene(hittables, start_id);
@@ -41,8 +41,8 @@ void manually_populate_scene(Hittable* hittables, int start_id)
 //#define num_manually_defined_hittables 4
 //	create_RTOW_three_spheres_on_top_of_big_sphere_scene(hittables, start_id);
 
-#define num_manually_defined_hittables 5
-	create_RTOW_glass_sphere(hittables, start_id);
+//#define num_manually_defined_hittables 5
+//	create_RTOW_glass_sphere(hittables, start_id);
 
 //#define num_manually_defined_hittables 3
 //	create_sphere_and_two_triangles_scene(hittables, start_id);
@@ -52,9 +52,12 @@ void manually_populate_scene(Hittable* hittables, int start_id)
 
 //#define num_manually_defined_hittables 9
 //	create_BVH_test_scene(hittables, start_id);
+
+#define num_manually_defined_hittables 500
+	create_RTOW_random_spheres_scene(hittables, start_id, rand_state);
 }
 
-void createScene(Scene& scene)
+void createScene(Scene& scene, curandState* rand_state)
 {
 	objData obj = load_obj("/home/vshotarov/Downloads/two_objs.obj");
 	objData obj2 = load_obj("/home/vshotarov/Downloads/bunny.obj");
@@ -78,7 +81,7 @@ void createScene(Scene& scene)
     obj_dims = (obj2.num_triangles + obj_threads - 1) / obj_threads;
 	create_obj_hittables<<<obj_dims, obj_threads>>>(scene.hittables, material2, obj2, obj.num_triangles);
 
-	manually_populate_scene<<<1, 1>>>(scene.hittables, obj.num_triangles + obj2.num_triangles);
+	manually_populate_scene<<<1, 1>>>(scene.hittables, obj.num_triangles + obj2.num_triangles, rand_state);
 }
 
 int main(int argc, char** argv)
@@ -111,12 +114,12 @@ int main(int argc, char** argv)
 	cudaMalloc(&camera, 1 * sizeof(Camera));
 
 	initialize_renderer<<<blocks, threads>>>(width, height, rand_state);
-	initialize_camera<<<1, 1>>>(camera, vec3(-2,1,0), vec3(0,0,-1),
-			vec3(0,1,0), 70, float(width)/float(height), 0.3, 2.5);
+	initialize_camera<<<1, 1>>>(camera, vec3(13,2,3), vec3(0,0,0),
+			vec3(0,1,0), 20, float(width)/float(height), 0.1, 10.0);
 
 	// Create scene
 	Scene scene;
-	createScene(scene);
+	createScene(scene, rand_state);
 
 	// Create BVH
 	BVHNode* bvh_root = create_BVH(scene.hittables, scene.num_hittables);

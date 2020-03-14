@@ -112,4 +112,41 @@ void create_BVH_test_scene(Hittable* hittables, int start_id)
 	}
 }
 
+__device__
+void create_RTOW_random_spheres_scene(Hittable* hittables, int start_id, curandState* rand_state)
+{
+    hittables[start_id] = Hittable::sphere(vec3(0,-1000,0), 1000, Material::lambertian(vec3(0.5, 0.5, 0.5)));
+    int i = start_id + 1;
+    for (int a = -11; a < 11; a++) {
+        for (int b = -11; b < 11; b++) {
+            float choose_mat = curand_uniform(rand_state);
+            vec3 center(a+0.9*curand_uniform(rand_state),0.2,b+0.9*curand_uniform(rand_state));
+            if ((center-vec3(4,0.2,0)).length() > 0.9) {
+                if (choose_mat < 0.8) {  // diffuse
+                    hittables[i++] = Hittable::sphere(center, 0.2,
+                        Material::lambertian(vec3(curand_uniform(rand_state)*curand_uniform(rand_state),
+                                            curand_uniform(rand_state)*curand_uniform(rand_state),
+                                            curand_uniform(rand_state)*curand_uniform(rand_state))
+                        )
+                    );
+                }
+                else if (choose_mat < 0.95) { // metal
+                    hittables[i++] = Hittable::sphere(center, 0.2,
+                            Material::metal(vec3(0.5*(1 + curand_uniform(rand_state)),
+                                           0.5*(1 + curand_uniform(rand_state)),
+                                           0.5*(1 + curand_uniform(rand_state))),
+                                      0.5*curand_uniform(rand_state)));
+                }
+                else {  // glass
+                    hittables[i++] = Hittable::sphere(center, 0.2, Material::dielectric(1.5));
+                }
+            }
+        }
+    }
+
+    hittables[i++] = Hittable::sphere(vec3(0, 1, 0), 1.0, Material::dielectric(1.5));
+    hittables[i++] = Hittable::sphere(vec3(-4, 1, 0), 1.0, Material::lambertian(vec3(0.4, 0.2, 0.1)));
+    hittables[i++] = Hittable::sphere(vec3(4, 1, 0), 1.0, Material::metal(vec3(0.7, 0.6, 0.5), 0.0));
+}
+
 #endif
