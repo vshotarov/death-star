@@ -64,12 +64,6 @@ void create_obj_hittables(Hittable* hittables, Material* material,
 			material);
 }
 
-__global__
-void initialize_obj_material(Material* material)
-{
-	*material = *Material::lambertian(vec3(.5, .3, .1));
-}
-
 objData load_obj(const char* obj_file)
 {
 	tinyobj::attrib_t attrib;

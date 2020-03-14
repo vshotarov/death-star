@@ -119,4 +119,16 @@ struct Material
 		};
 };
 
+__global__
+void create_lambertian(Material* material, vec3 colour)
+{
+	*material = *Material::lambertian(colour);
+}
+
+__global__
+void create_metal(Material* material, vec3 colour, float fuzz)
+{
+	*material = *Material::metal(colour, fuzz);
+}
+
 #endif

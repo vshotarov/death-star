@@ -21,7 +21,7 @@ using namespace glm;
 
 // Since memory for hittables must already be allocated when creating
 // them on the GPU, I currently store a static number of how many hittables
-// are manually created.
+// are manually created - num_manually_defined_hittables.
 // It is far less than ideal, and a potential workaround would be to instead
 // of creating them directly on the GPU, I create a bunch of sphereData and
 // triangleData structs, similar to the ones I create for .obj files, which
@@ -36,11 +36,50 @@ using namespace glm;
 // the number of objects to render, so in those cases, the number of hittables
 // is always known, so there is no need for neither the above mentioned proceedure
 // nor the following manually maintained static value.
-#define num_manually_defined_hittables 2
 __global__
-void populate_scene(Hittable* hittables, int start_id)
+void manually_populate_scene(Hittable* hittables, int start_id)
 {
+#define num_manually_defined_hittables 2
 	create_sphere_on_top_of_big_sphere_scene(hittables, start_id);
+
+//#define num_manually_defined_hittables 4
+//	create_RTOW_three_spheres_on_top_of_big_sphere_scene(hittables, start_id);
+
+//#define num_manually_defined_hittables 3
+//	create_sphere_and_two_triangles_scene(hittables, start_id);
+
+//#define num_manually_defined_hittables 50
+//	create_random_spheres_and_triangles_scene(hittables, start_id, 50);
+
+//#define num_manually_defined_hittables 9
+//	create_BVH_test_scene(hittables, start_id);
+}
+
+void createScene(Scene& scene)
+{
+	objData obj = load_obj("/home/vshotarov/Downloads/two_objs.obj");
+	objData obj2 = load_obj("/home/vshotarov/Downloads/bunny.obj");
+	scene.num_hittables = obj.num_triangles + obj2.num_triangles + num_manually_defined_hittables;
+
+	cudaMalloc(&(scene.hittables), scene.num_hittables * sizeof(Hittable));
+
+	Material* material;
+	cudaMalloc(&(material), sizeof(Material));
+
+	create_lambertian<<<1, 1>>>(material, vec3(.5, .3, .1));
+
+	Material* material2;
+	cudaMalloc(&(material2), sizeof(Material));
+	create_metal<<<1, 1>>>(material2, vec3(.1, .3, .5), .5);
+
+	int obj_threads = 512;
+    int obj_dims = (obj.num_triangles + obj_threads - 1) / obj_threads;
+	create_obj_hittables<<<obj_dims, obj_threads>>>(scene.hittables, material, obj, 0);
+
+    obj_dims = (obj2.num_triangles + obj_threads - 1) / obj_threads;
+	create_obj_hittables<<<obj_dims, obj_threads>>>(scene.hittables, material2, obj2, obj.num_triangles);
+
+	manually_populate_scene<<<1, 1>>>(scene.hittables, obj.num_triangles + obj2.num_triangles);
 }
 
 int main(int argc, char** argv)
@@ -54,9 +93,6 @@ int main(int argc, char** argv)
 	int num_samples = strtol(argv[3], &endptr, 10);
 	int max_bounces = strtol(argv[4], &endptr, 10);
 	char* out_file = argv[5];
-	char* obj_file = NULL;
-	if(argc > 6)
-		obj_file = argv[6];
 
 	printf("Initializing death-star for %ix%i pixels, %i samples and %i max bounces\n",
 			width, height, num_samples, max_bounces);
@@ -80,26 +116,7 @@ int main(int argc, char** argv)
 
 	// Create scene
 	Scene scene;
-
-	objData obj = load_obj(obj_file);
-	objData obj2 = load_obj("/home/vshotarov/Downloads/bunny.obj");
-	scene.num_hittables = obj.num_triangles + obj2.num_triangles + num_manually_defined_hittables;
-
-	cudaMalloc(&(scene.hittables), scene.num_hittables * sizeof(Hittable));
-
-	Material* material;
-	cudaMalloc(&(material), sizeof(Material));
-
-	initialize_obj_material<<<1, 1>>>(material);
-
-	int obj_threads = 512;
-    int obj_dims = (obj.num_triangles + obj_threads - 1) / obj_threads;
-	create_obj_hittables<<<obj_dims, obj_threads>>>(scene.hittables, material, obj, 0);
-
-    obj_dims = (obj2.num_triangles + obj_threads - 1) / obj_threads;
-	create_obj_hittables<<<obj_dims, obj_threads>>>(scene.hittables, material, obj2, obj.num_triangles);
-
-	populate_scene<<<1, 1>>>(scene.hittables, obj.num_triangles + obj2.num_triangles);
+	createScene(scene);
 
 	// Create BVH
 	BVHNode* bvh_root = create_BVH(scene.hittables, scene.num_hittables);
