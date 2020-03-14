@@ -52,8 +52,8 @@ class Hittable
 			hittable._sphere = Sphere();
 			hittable._sphere.center = center;
 			hittable._sphere.radius = radius;
-			hittable.bounding_box = AABB(vec3(center.x-radius, center.y-radius, center.z-radius),
-										 vec3(center.x+radius, center.y+radius, center.z+radius));
+			hittable.bounding_box = AABB(vec3(center.x-abs(radius), center.y-abs(radius), center.z-abs(radius)),
+										 vec3(center.x+abs(radius), center.y+abs(radius), center.z+abs(radius)));
 			return hittable;
 		}
 
