@@ -5,10 +5,6 @@
 #include "AABB.h"
 #include "hit_tests.h"
 
-#include <glm/glm.hpp>
-
-using namespace glm;
-
 struct Material;  // Define Material, so it can be stored on Hittables
 
 // From here on we define all hittable types, and in the end
@@ -52,8 +48,8 @@ class Hittable
 			hittable._sphere = Sphere();
 			hittable._sphere.center = center;
 			hittable._sphere.radius = radius;
-			hittable.bounding_box = AABB(vec3(center.x-abs(radius), center.y-abs(radius), center.z-abs(radius)),
-										 vec3(center.x+abs(radius), center.y+abs(radius), center.z+abs(radius)));
+			hittable.bounding_box = AABB(vec3(center.x()-abs(radius), center.y()-abs(radius), center.z()-abs(radius)),
+										 vec3(center.x()+abs(radius), center.y()+abs(radius), center.z()+abs(radius)));
 			return hittable;
 		}
 
@@ -65,21 +61,21 @@ class Hittable
 			hittable._triangle.A = A;
 			hittable._triangle.B = B;
 			hittable._triangle.C = C;
-			hittable._triangle.normal = normalize(cross(B-A, C-A));
+			hittable._triangle.normal = unit_vector(cross(B-A, C-A));
 
-			float sx = A.x < B.x ? A.x : B.x;
-			sx = C.x < sx ? C.x : sx;
-			float sy = A.y < B.y ? A.y : B.y;
-			sy = C.y < sy ? C.y : sy;
-			float sz = A.z < B.z ? A.z : B.z;
-			sz = C.z < sz ? C.z : sz;
+			float sx = A.x() < B.x() ? A.x() : B.x();
+			sx = C.x() < sx ? C.x() : sx;
+			float sy = A.y() < B.y() ? A.y() : B.y();
+			sy = C.y() < sy ? C.y() : sy;
+			float sz = A.z() < B.z() ? A.z() : B.z();
+			sz = C.z() < sz ? C.z() : sz;
 
-			float lx = A.x > B.x ? A.x : B.x;
-			lx = C.x > lx ? C.x : lx;
-			float ly = A.y > B.y ? A.y : B.y;
-			ly = C.y > ly ? C.y : ly;
-			float lz = A.z > B.z ? A.z : B.z;
-			lz = C.z > lz ? C.z : lz;
+			float lx = A.x() > B.x() ? A.x() : B.x();
+			lx = C.x() > lx ? C.x() : lx;
+			float ly = A.y() > B.y() ? A.y() : B.y();
+			ly = C.y() > ly ? C.y() : ly;
+			float lz = A.z() > B.z() ? A.z() : B.z();
+			lz = C.z() > lz ? C.z() : lz;
 
 			hittable.bounding_box = AABB(vec3(sx,sy,sz), vec3(lx,ly,lz));
 

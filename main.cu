@@ -14,10 +14,6 @@
 
 #include <curand_kernel.h>
 
-#include <glm/glm.hpp>
-
-using namespace glm;
-
 
 // Since memory for hittables must already be allocated when creating
 // them on the GPU, I currently store a static number of how many hittables
@@ -45,7 +41,7 @@ void manually_populate_scene(Hittable* hittables, int start_id)
 //#define num_manually_defined_hittables 4
 //	create_RTOW_three_spheres_on_top_of_big_sphere_scene(hittables, start_id);
 
-#define num_manually_defined_hittables 4
+#define num_manually_defined_hittables 5
 	create_RTOW_glass_sphere(hittables, start_id);
 
 //#define num_manually_defined_hittables 3

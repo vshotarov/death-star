@@ -1,9 +1,7 @@
 #ifndef RAY_H
 #define RAY_H
 
-#include <glm/glm.hpp>
-
-using namespace glm;
+#include "vec3.h"
 
 struct ray
 {

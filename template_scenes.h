@@ -33,8 +33,8 @@ void create_RTOW_glass_sphere(Hittable* hittables, int start_id)
 			Material::metal(vec3(.8, .6, .2), 0.0f));
 	hittables[start_id + 3] = Hittable::sphere(vec3(-1.0, 0.0, -1.0), .5,
 			Material::dielectric(1.5));
-	//hittables[start_id + 4] = Hittable::sphere(vec3(-1.0, 0.0, -1.0), -.45,
-	//		Material::dielectric(1.5));
+	hittables[start_id + 4] = Hittable::sphere(vec3(-1.0, 0.0, -1.0), -.45,
+			Material::dielectric(1.5));
 }
 
 __device__

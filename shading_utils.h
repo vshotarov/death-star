@@ -1,9 +1,8 @@
 #ifndef SHADING_UTILS_H
 #define SHADING_UTILS_H
 
-#include <glm/glm.hpp>
+#include "vec3.h"
 
-using namespace glm;
 
 __device__ vec3 reflect(const vec3& v, const vec3& n)
 {
@@ -20,7 +19,7 @@ namespace death_star
 // Wrap refract in a namespace, as it also exists under glm
 {
 __device__ bool refract(const vec3& v, const vec3& n, float ni_over_nt, vec3& refracted) {
-    vec3 uv = normalize(v);
+    vec3 uv = unit_vector(v);
     float dt = dot(uv, n);
     float discriminant = 1.0 - ni_over_nt*ni_over_nt*(1-dt*dt);
     if (discriminant > 0) {

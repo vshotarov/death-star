@@ -14,10 +14,6 @@
 
 #include <thrust/sort.h>
 
-#include <glm/glm.hpp>
-
-using namespace glm;
-
 // Expands a 10-bit integer into 30 bits
 // by inserting 2 zeros after each bit.
 __device__ unsigned int expandBits(unsigned int v)
@@ -35,9 +31,9 @@ __device__ unsigned int expandBits(unsigned int v)
 __device__ unsigned int morton3D(vec3 point)
 {
 	// Copied directly from https://devblogs.nvidia.com/thinking-parallel-part-iii-tree-construction-gpu/
-    float x = min(max(point.x * 1024.0f, 0.0f), 1023.0f);
-    float y = min(max(point.y * 1024.0f, 0.0f), 1023.0f);
-    float z = min(max(point.z * 1024.0f, 0.0f), 1023.0f);
+    float x = min(max(point.x() * 1024.0f, 0.0f), 1023.0f);
+    float y = min(max(point.y() * 1024.0f, 0.0f), 1023.0f);
+    float z = min(max(point.z() * 1024.0f, 0.0f), 1023.0f);
     unsigned int xx = expandBits((unsigned int)x);
     unsigned int yy = expandBits((unsigned int)y);
     unsigned int zz = expandBits((unsigned int)z);
@@ -232,20 +228,20 @@ void print_bvh(BVHNode *internal_nodes, BVHNode *leaf_nodes, Hittable* hittables
 		printf("Internal %i\n", i);
 		printf("	bbox\n");
 		printf("		min(%.2f, %.2f, %.2f)\n",
-				internal_nodes[i].bounding_box.min.x,
-				internal_nodes[i].bounding_box.min.y,
-				internal_nodes[i].bounding_box.min.z);
+				internal_nodes[i].bounding_box.min.x(),
+				internal_nodes[i].bounding_box.min.y(),
+				internal_nodes[i].bounding_box.min.z());
 		printf("		max(%.2f, %.2f, %.2f)\n",
-				internal_nodes[i].bounding_box.max.x,
-				internal_nodes[i].bounding_box.max.y,
-				internal_nodes[i].bounding_box.max.z);
+				internal_nodes[i].bounding_box.max.x(),
+				internal_nodes[i].bounding_box.max.y(),
+				internal_nodes[i].bounding_box.max.z());
 		if(internal_nodes[i].left->type == bvh_node_type::leaf)
 		{
 			printf("	left leaf\n");
 			printf("		Sphere bbox->centroid (%.2f, %.2f, %.2f)\n",
-					internal_nodes[i].left->hittable->bounding_box.centroid.x,
-					internal_nodes[i].left->hittable->bounding_box.centroid.y,
-					internal_nodes[i].left->hittable->bounding_box.centroid.z);
+					internal_nodes[i].left->hittable->bounding_box.centroid.x(),
+					internal_nodes[i].left->hittable->bounding_box.centroid.y(),
+					internal_nodes[i].left->hittable->bounding_box.centroid.z());
 		}
 		else
 		{
@@ -255,9 +251,9 @@ void print_bvh(BVHNode *internal_nodes, BVHNode *leaf_nodes, Hittable* hittables
 		{
 			printf("	right leaf\n");
 			printf("		Sphere bbox->centroid (%.2f, %.2f, %.2f)\n",
-					internal_nodes[i].right->hittable->bounding_box.centroid.x,
-					internal_nodes[i].right->hittable->bounding_box.centroid.y,
-					internal_nodes[i].right->hittable->bounding_box.centroid.z);
+					internal_nodes[i].right->hittable->bounding_box.centroid.x(),
+					internal_nodes[i].right->hittable->bounding_box.centroid.y(),
+					internal_nodes[i].right->hittable->bounding_box.centroid.z());
 		}
 		else
 		{

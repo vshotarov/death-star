@@ -3,10 +3,6 @@
 
 #include "ray.h"
 
-#include <glm/glm.hpp>
-
-using namespace glm;
-
 struct Camera
 {
 	public:
@@ -21,7 +17,7 @@ struct Camera
 		__device__ ray get_ray(float u, float v)
 		{
 			return ray(origin,
-				  normalize(lower_left_corner + u*horizontal + v*vertical));
+				  unit_vector(lower_left_corner + u*horizontal + v*vertical));
 		}
 
 	private:

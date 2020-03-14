@@ -1,10 +1,7 @@
 #ifndef HIT_TESTS_H
 #define HIT_TESTS_H
 
-
-#include <glm/glm.hpp>
-
-using namespace glm;
+#include "vec3.h"
 
 // Hit record used for storing and sharing intersection data
 struct Material;

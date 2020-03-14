@@ -6,16 +6,12 @@
 
 #include <curand_kernel.h>
 
-#include <glm/glm.hpp>
-
-using namespace glm;
-
 
 __device__
 vec3 miss_colour(const ray& r)
 {
-	vec3 unit_direction = normalize(r.direction);
-	float t = .5 * (unit_direction.y + 1.0);
+	vec3 unit_direction = unit_vector(r.direction);
+	float t = .5 * (unit_direction.y() + 1.0);
 	return (1.0f-t)*vec3(1.0, 1.0, 1.0) + t*vec3(.5, .7, 1.0);
 }
 
@@ -111,10 +107,10 @@ void render(int width, int height, int num_samples, int max_bounces, float* pixe
 	out_colour /= float(num_samples);
 
 	// Colour space transformation
-	out_colour = vec3(sqrt(out_colour.x), sqrt(out_colour.y), sqrt(out_colour.z));
+	out_colour = vec3(sqrt(out_colour.x()), sqrt(out_colour.y()), sqrt(out_colour.z()));
 
 	// Store in pixel buffer
-	pixel_buffer[pixel_id * 3 + 0] = out_colour.x;
-	pixel_buffer[pixel_id * 3 + 1] = out_colour.y;
-	pixel_buffer[pixel_id * 3 + 2] = out_colour.z;
+	pixel_buffer[pixel_id * 3 + 0] = out_colour.x();
+	pixel_buffer[pixel_id * 3 + 1] = out_colour.y();
+	pixel_buffer[pixel_id * 3 + 2] = out_colour.z();
 }

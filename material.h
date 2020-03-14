@@ -5,10 +5,6 @@
 #include "random.h"
 #include "shading_utils.h"
 
-#include <glm/glm.hpp>
-
-using namespace glm;
-
 
 // Material types
 enum class material_type
