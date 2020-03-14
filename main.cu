@@ -39,11 +39,14 @@ using namespace glm;
 __global__
 void manually_populate_scene(Hittable* hittables, int start_id)
 {
-#define num_manually_defined_hittables 2
-	create_sphere_on_top_of_big_sphere_scene(hittables, start_id);
+//#define num_manually_defined_hittables 2
+//	create_sphere_on_top_of_big_sphere_scene(hittables, start_id);
 
 //#define num_manually_defined_hittables 4
 //	create_RTOW_three_spheres_on_top_of_big_sphere_scene(hittables, start_id);
+
+#define num_manually_defined_hittables 4
+	create_RTOW_glass_sphere(hittables, start_id);
 
 //#define num_manually_defined_hittables 3
 //	create_sphere_and_two_triangles_scene(hittables, start_id);
@@ -57,29 +60,31 @@ void manually_populate_scene(Hittable* hittables, int start_id)
 
 void createScene(Scene& scene)
 {
-	objData obj = load_obj("/home/vshotarov/Downloads/two_objs.obj");
-	objData obj2 = load_obj("/home/vshotarov/Downloads/bunny.obj");
-	scene.num_hittables = obj.num_triangles + obj2.num_triangles + num_manually_defined_hittables;
+	//objData obj = load_obj("/home/vshotarov/Downloads/bunny.obj");
+	//objData obj2 = load_obj("/home/vshotarov/Downloads/bunny.obj");
+	//scene.num_hittables = obj.num_triangles + obj2.num_triangles + num_manually_defined_hittables;
+	scene.num_hittables = num_manually_defined_hittables;
 
 	cudaMalloc(&(scene.hittables), scene.num_hittables * sizeof(Hittable));
 
-	Material* material;
-	cudaMalloc(&(material), sizeof(Material));
+	//Material* material;
+	//cudaMalloc(&(material), sizeof(Material));
 
-	create_lambertian<<<1, 1>>>(material, vec3(.5, .3, .1));
+	//create_lambertian<<<1, 1>>>(material, vec3(.5, .3, .1));
 
-	Material* material2;
-	cudaMalloc(&(material2), sizeof(Material));
-	create_metal<<<1, 1>>>(material2, vec3(.1, .3, .5), .5);
+	//Material* material2;
+	//cudaMalloc(&(material2), sizeof(Material));
+	//create_metal<<<1, 1>>>(material2, vec3(.1, .3, .5), .5);
 
-	int obj_threads = 512;
-    int obj_dims = (obj.num_triangles + obj_threads - 1) / obj_threads;
-	create_obj_hittables<<<obj_dims, obj_threads>>>(scene.hittables, material, obj, 0);
+	//int obj_threads = 512;
+    //int obj_dims = (obj.num_triangles + obj_threads - 1) / obj_threads;
+	//create_obj_hittables<<<obj_dims, obj_threads>>>(scene.hittables, material, obj, 0);
 
-    obj_dims = (obj2.num_triangles + obj_threads - 1) / obj_threads;
-	create_obj_hittables<<<obj_dims, obj_threads>>>(scene.hittables, material2, obj2, obj.num_triangles);
+    //obj_dims = (obj2.num_triangles + obj_threads - 1) / obj_threads;
+	//create_obj_hittables<<<obj_dims, obj_threads>>>(scene.hittables, material2, obj2, obj.num_triangles);
 
-	manually_populate_scene<<<1, 1>>>(scene.hittables, obj.num_triangles + obj2.num_triangles);
+	//manually_populate_scene<<<1, 1>>>(scene.hittables, obj.num_triangles + obj2.num_triangles);
+	manually_populate_scene<<<1, 1>>>(scene.hittables, 0);
 }
 
 int main(int argc, char** argv)

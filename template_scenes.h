@@ -23,6 +23,21 @@ void create_RTOW_three_spheres_on_top_of_big_sphere_scene(Hittable* hittables, i
 }
 
 __device__
+void create_RTOW_glass_sphere(Hittable* hittables, int start_id)
+{
+	hittables[start_id + 0] = Hittable::sphere(vec3(.0, .0, -1.0), .5,
+			Material::lambertian(vec3(.1, .2, .5)));
+	hittables[start_id + 1] = Hittable::sphere(vec3(.0, -100.5, -1.0), 100,
+			Material::lambertian(vec3(.8, .8, .0)));
+	hittables[start_id + 2] = Hittable::sphere(vec3(1.0, 0.0, -1.0), .5,
+			Material::metal(vec3(.8, .6, .2), 0.0f));
+	hittables[start_id + 3] = Hittable::sphere(vec3(-1.0, 0.0, -1.0), .5,
+			Material::dielectric(1.5));
+	//hittables[start_id + 4] = Hittable::sphere(vec3(-1.0, 0.0, -1.0), -.45,
+	//		Material::dielectric(1.5));
+}
+
+__device__
 void create_sphere_on_top_of_big_sphere_scene(Hittable* hittables, int start_id)
 {
 	Material* material = Material::lambertian(vec3(.5, .5, .5));

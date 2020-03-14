@@ -14,15 +14,14 @@ using namespace glm;
 enum class material_type
 {
 	lambertian,
-	metal
+	metal,
+	dielectric
 };
 
 struct Lambertian
 {
 	public:
 		__device__ Lambertian(vec3 albedo) : albedo(albedo) {};
-		__device__ void destroy() {};
-
 		__device__ bool scatter(const ray& r, const hit_record& rec, vec3& attenuation,
 				ray& scattered, curandState* rand_state)
 		{
@@ -44,8 +43,6 @@ struct Metal
 	public:
 		__device__ Metal(vec3 albedo, float fuzz) :
 			albedo(albedo), fuzz(fuzz) {};
-		__device__ void destroy() {};
-
 		__device__ bool scatter(const ray& r, const hit_record& rec, vec3& attenuation,
 				ray& scattered, curandState* rand_state)
 		{
@@ -63,12 +60,59 @@ struct Metal
 		float fuzz;
 };
 
+struct Dielectric
+{
+	public:
+		__device__ Dielectric(float refractive_idx) : refractive_idx(refractive_idx) {};
+		__device__ bool scatter(const ray& r, const hit_record& rec, vec3& attenuation,
+				ray& scattered, curandState* rand_state)
+		{
+            vec3 outward_normal;
+            vec3 reflected = reflect(r.direction, rec.normal);
+            float ni_over_nt;
+            attenuation = vec3(1.0, 1.0, 1.0);
+            vec3 refracted;
+
+            float reflect_prob;
+            float cosine;
+
+            if (dot(r.direction, rec.normal) > 0) {
+                 outward_normal = -rec.normal;
+                 ni_over_nt = refractive_idx;
+                 cosine = refractive_idx * dot(r.direction, rec.normal)
+                        / r.direction.length();
+            }
+            else {
+                 outward_normal = rec.normal;
+                 ni_over_nt = 1.0 / refractive_idx;
+                 cosine = -dot(r.direction, rec.normal)
+                        / r.direction.length();
+            }
+
+            if (death_star::refract(r.direction, outward_normal, ni_over_nt, refracted)) {
+               reflect_prob = schlick(cosine, refractive_idx);
+            }
+            else {
+               reflect_prob = 1.0;
+            }
+
+            if (curand_uniform(rand_state) < reflect_prob) {
+               scattered = ray(rec.p, reflected);
+            }
+            else {
+               scattered = ray(rec.p, refracted);
+            }
+
+            return true;
+        }
+	private:
+		float refractive_idx;
+};
+
 struct Material
 {
 	public:
-		__device__ Material(material_type type) : _type(type) {}
 		__device__ material_type type() { return _type; }
-		__device__ ~Material() { destroy(); }
 
 		__device__ static Material* lambertian(vec3 albedo)
 		{
@@ -84,6 +128,13 @@ struct Material
 			return material;
 		}
 
+		__device__ static Material* dielectric(float refractive_idx)
+		{
+			Material* material = new Material(material_type::dielectric);
+			material->_dielectric = Dielectric(refractive_idx);
+			return material;
+		}
+
 		__device__ bool scatter(const ray& r, const hit_record& rec, vec3& attenuation,
 				ray& scattered, curandState* rand_state)
 		{
@@ -95,27 +146,24 @@ struct Material
 					r, rec, attenuation, scattered, rand_state); break;
 				case material_type::metal: out = _metal.scatter(
 					r, rec, attenuation, scattered, rand_state); break;
+				case material_type::dielectric: out = _dielectric.scatter(
+					r, rec, attenuation, scattered, rand_state); break;
 			}
 
 			return out;
 		}
 
-		__device__ void destroy()
-		{
-			switch(_type)
-			{
-				case material_type::lambertian: _lambertian.destroy(); break;
-				case material_type::metal: _metal.destroy(); break;
-			}
-		}
+		__device__ ~Material() { delete this; } // Materials are always created dynamically
 
 	private:
+		__device__ Material(material_type type) : _type(type) {}
 		material_type _type;
 
 		union
 		{
 			Lambertian _lambertian;
 			Metal _metal;
+			Dielectric _dielectric;
 		};
 };
 
