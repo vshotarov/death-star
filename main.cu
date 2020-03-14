@@ -111,8 +111,8 @@ int main(int argc, char** argv)
 	cudaMalloc(&camera, 1 * sizeof(Camera));
 
 	initialize_renderer<<<blocks, threads>>>(width, height, rand_state);
-	initialize_camera<<<1, 1>>>(camera, vec3(-2,2,1), vec3(0,0,-1),
-			vec3(0,1,0), 90, float(width)/float(height));
+	initialize_camera<<<1, 1>>>(camera, vec3(-2,1,0), vec3(0,0,-1),
+			vec3(0,1,0), 70, float(width)/float(height), 0.3, 2.5);
 
 	// Create scene
 	Scene scene;

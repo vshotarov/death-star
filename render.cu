@@ -68,9 +68,9 @@ void initialize_renderer(int width, int height, curandState* rand_state)
 
 __global__
 void initialize_camera(Camera* camera, vec3 look_from, vec3 look_at, vec3 up,
-		float fov, float aspect_ratio)
+		float fov, float aspect_ratio, float aperture, float focus_distance)
 {
-	(*camera) = Camera(look_from, look_at, up, fov, aspect_ratio);
+	(*camera) = Camera(look_from, look_at, up, fov, aspect_ratio, aperture, focus_distance);
 }
 
 __global__
@@ -100,7 +100,7 @@ void render(int width, int height, int num_samples, int max_bounces, float* pixe
 		float v = float(y + curand_uniform(&local_rand_state)) / f_height;
 
 		// Get ray through the pixel
-		ray r = camera->get_ray(u, v);
+		ray r = camera->get_ray(u, v, &local_rand_state);
 
 		// Ray trace
 		out_colour += colour(r, bvh_root, &local_rand_state, max_bounces);
