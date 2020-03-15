@@ -1,6 +1,0 @@
-# Running out of memory when rendering the bunny
-It seems like the reason I am running out of memory is because I allocate enough memory for pointers to hittables, but not enough for the hittables themselves. Since they are created using "new" they use the heap. If I resize the heap, then I can successfully render the bunny.
-
-Resizing the heap is okay, but I'll need quite a lot of calculation to get the correct size that I need rather than just overshooting it, as I am doing right now.
-
-What would be much better is if I don't use "new", so essentially I store a Hittable* which I can correctly allocate with N * sizeof(Hittable) bytes of memory;
