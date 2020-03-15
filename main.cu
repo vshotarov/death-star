@@ -35,32 +35,19 @@
 __global__
 void manually_populate_scene(Hittable* hittables, int start_id, curandState* rand_state)
 {
-//#define num_manually_defined_hittables 2
-//	create_sphere_on_top_of_big_sphere_scene(hittables, start_id);
-
-//#define num_manually_defined_hittables 4
-//	create_RTOW_three_spheres_on_top_of_big_sphere_scene(hittables, start_id);
-
-//#define num_manually_defined_hittables 5
-//	create_RTOW_glass_sphere(hittables, start_id);
-
-//#define num_manually_defined_hittables 3
-//	create_sphere_and_two_triangles_scene(hittables, start_id);
-
-//#define num_manually_defined_hittables 50
-//	create_random_spheres_and_triangles_scene(hittables, start_id, 50);
-
-//#define num_manually_defined_hittables 9
-//	create_BVH_test_scene(hittables, start_id);
-
-#define num_manually_defined_hittables 500
-	create_RTOW_random_spheres_scene(hittables, start_id, rand_state);
+#define num_manually_defined_hittables 3
+	hittables[start_id+0] = Hittable::sphere(vec3(0,-1000,0), 1000,
+			Material::lambertian(vec3(0.2, 0.2, 0.35)));
+	hittables[start_id+1] = Hittable::sphere(vec3(0,.5,0), .5,
+			Material::metal(vec3(.5, .5, .5), .0));
+	hittables[start_id+2] = Hittable::sphere(vec3(.7,.25,0), .25,
+			Material::dielectric(1.5));
 }
 
 void createScene(Scene& scene, curandState* rand_state)
 {
-	objData obj = load_obj("/home/vshotarov/Downloads/two_objs.obj");
-	objData obj2 = load_obj("/home/vshotarov/Downloads/bunny.obj");
+	objData obj = load_obj("/home/vshotarov/Downloads/dragonZ.obj");
+	objData obj2 = load_obj("/home/vshotarov/Downloads/bunnyZ.obj");
 	scene.num_hittables = obj.num_triangles + obj2.num_triangles + num_manually_defined_hittables;
 
 	cudaMalloc(&(scene.hittables), scene.num_hittables * sizeof(Hittable));
@@ -68,7 +55,7 @@ void createScene(Scene& scene, curandState* rand_state)
 	Material* material;
 	cudaMalloc(&(material), sizeof(Material));
 
-	create_lambertian<<<1, 1>>>(material, vec3(.5, .3, .1));
+	create_lambertian<<<1, 1>>>(material, vec3(.5, .1, .45));
 
 	Material* material2;
 	cudaMalloc(&(material2), sizeof(Material));
@@ -114,8 +101,8 @@ int main(int argc, char** argv)
 	cudaMalloc(&camera, 1 * sizeof(Camera));
 
 	initialize_renderer<<<blocks, threads>>>(width, height, rand_state);
-	initialize_camera<<<1, 1>>>(camera, vec3(13,2,3), vec3(0,0,0),
-			vec3(0,1,0), 20, float(width)/float(height), 0.1, 10.0);
+	initialize_camera<<<1, 1>>>(camera, vec3(-.253,1.731,7.573), vec3(-.253,1.119,.281),
+			vec3(0,1,0), 20, float(width)/float(height), 0.1, 7.317);
 
 	// Create scene
 	Scene scene;
